@@ -27,6 +27,7 @@ add_library(androidapp SHARED
             ../../../../../wsd/DocumentBroker.cpp
             ../../../../../wsd/COOLWSD.cpp
             ../../../../../wsd/RequestDetails.cpp
+            ../../../../../wsd/RequestVettingStation.cpp
             ../../../../../wsd/Storage.cpp
             ../../../../../wsd/TileCache.cpp
             ../../../../../wsd/coolwsd-fork.cpp)
