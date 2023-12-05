@@ -191,8 +191,6 @@ L.Control.NotebookbarBuilder = L.Control.JSDialogBuilder.extend({
 		this._toolitemHandlers['.uno:SnapFrame'] = function() {};
 		this._toolitemHandlers['.uno:HelplinesVisible'] = function() {};
 		this._toolitemHandlers['.uno:HelplinesUse'] = function() {};
-		this._toolitemHandlers['.uno:GridVisible'] = function() {};
-		this._toolitemHandlers['.uno:GridUse'] = function() {};
 
 		/*Graphic Tab*/
 		this._toolitemHandlers['.uno:Crop'] = function() {};
