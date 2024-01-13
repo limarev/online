@@ -63,6 +63,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <regex>
 #include <sstream>
@@ -5331,15 +5332,14 @@ private:
 #endif
             }
 
-            auto rvs = std::make_shared<RequestVettingStation>(WebServerPoll, requestDetails);
-            _requestVettingStations.emplace(_id, rvs);
+            _rvs = std::make_shared<RequestVettingStation>(WebServerPoll, requestDetails);
 
             // Indicate to the client that document broker is searching.
             static constexpr const char* const status = "statusindicator: find";
             LOG_TRC("Sending to Client [" << status << ']');
             ws->sendMessage(status);
 
-            rvs->handleRequest(_id, ws, socket, mobileAppDocId, disposition);
+            _rvs->handleRequest(_id, ws, socket, mobileAppDocId, disposition);
         }
         catch (const std::exception& exc)
         {
@@ -5513,6 +5513,10 @@ private:
 
     /// WASM document request handler. Used only when WASM is enabled.
     std::unique_ptr<WopiProxy> _wopiProxy;
+
+    /// The private RequestVettingStation. Held privately after the
+    /// WS is created and as long as it is connected.
+    std::shared_ptr<RequestVettingStation> _rvs;
 
     /// External requests are first vetted before allocating DocBroker and Kit process.
     /// This is a map of the request URI to the RequestVettingStation for vetting.
