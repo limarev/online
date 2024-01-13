@@ -490,10 +490,9 @@ bool FileServerRequestHandler::isAdminLoggedIn(const HTTPRequest& request, http:
     }
 #endif
 
-void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
-                                             const RequestDetails &requestDetails,
-                                             Poco::MemoryInputStream& message,
-                                             const std::shared_ptr<StreamSocket>& socket)
+FileServerRequestHandler::ResourceAccessDetails FileServerRequestHandler::handleRequest(
+    const HTTPRequest& request, const RequestDetails& requestDetails,
+    Poco::MemoryInputStream& message, const std::shared_ptr<StreamSocket>& socket)
 {
     try
     {
@@ -544,7 +543,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
 #if ENABLE_DEBUG
         if (Util::startsWith(relPath, std::string("/wopi/files"))) {
             handleWopiRequest(request, requestDetails, message, socket);
-            return;
+            return ResourceAccessDetails();
         }
 #endif
         if (request.getMethod() == HTTPRequest::HTTP_POST && endPoint == "logging.html")
@@ -564,7 +563,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
 
                     http::Response httpResponse(http::StatusCode::OK);
                     socket->send(httpResponse);
-                    return;
+                    return ResourceAccessDetails();
                 }
             }
         }
@@ -577,7 +576,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
         if (endPoint == "welcome.html")
         {
             preprocessWelcomeFile(request, requestDetails, message, socket);
-            return;
+            return ResourceAccessDetails();
         }
 
         if (endPoint == "cool.html" ||
@@ -587,8 +586,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
             endPoint == "uno-localizations.json" ||
             endPoint == "uno-localizations-override.json")
         {
-            preprocessFile(request, requestDetails, message, socket);
-            return;
+            return preprocessFile(request, requestDetails, message, socket);
         }
 
         if (request.getMethod() == HTTPRequest::HTTP_GET)
@@ -599,7 +597,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
                 endPoint == "adminClusterOverviewAbout.html")
             {
                 preprocessAdminFile(request, requestDetails, socket);
-                return;
+                return ResourceAccessDetails();
             }
 
             if (endPoint == "admin-bundle.js" ||
@@ -662,7 +660,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
                         "Cache-Control: max-age=11059200\r\n";
                     HttpHelper::sendErrorAndShutdown(http::StatusCode::NotModified, socket,
                                                      std::string(), extraHeaders);
-                    return;
+                    return ResourceAccessDetails();
                 }
             }
 
@@ -694,7 +692,7 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
                 }
 
                 HttpHelper::sendFileAndShutdown(socket, filePath, response, noCache);
-                return;
+                return ResourceAccessDetails();
             }
 #endif
 
@@ -756,6 +754,8 @@ void FileServerRequestHandler::handleRequest(const HTTPRequest& request,
                   "500 - Internal Server Error!",
                   "Cannot process the request - " + exc.displayText());
     }
+
+    return ResourceAccessDetails();
 }
 
 void FileServerRequestHandler::sendError(http::StatusCode errorCode,
@@ -1129,10 +1129,9 @@ private:
     const std::string _blank;
 };
 
-void FileServerRequestHandler::preprocessFile(const HTTPRequest& request,
-                                              const RequestDetails &requestDetails,
-                                              Poco::MemoryInputStream& message,
-                                              const std::shared_ptr<StreamSocket>& socket)
+FileServerRequestHandler::ResourceAccessDetails FileServerRequestHandler::preprocessFile(
+    const HTTPRequest& request, const RequestDetails& requestDetails,
+    Poco::MemoryInputStream& message, const std::shared_ptr<StreamSocket>& socket)
 {
     const ServerURL cnxDetails(requestDetails);
 
@@ -1358,11 +1357,14 @@ void FileServerRequestHandler::preprocessFile(const HTTPRequest& request,
     if (uriHost.getHost() != configFrameAncestor)
         frameAncestors += ' ' + uriHost.getHost() + ":*";
 
+    std::string wopiSrc;
     for (const auto& param : params)
     {
         if (param.first == "WOPISrc")
         {
             const Poco::URI uriWopiFrameAncestor(Util::decodeURIComponent(param.second));
+            wopiSrc = uriWopiFrameAncestor.toString();
+
             // Remove parameters from URL
             const std::string& wopiFrameAncestor = uriWopiFrameAncestor.getHost();
             if (wopiFrameAncestor != uriHost.getHost() && wopiFrameAncestor != configFrameAncestor)
@@ -1494,6 +1496,8 @@ void FileServerRequestHandler::preprocessFile(const HTTPRequest& request,
 
     socket->send(oss.str());
     LOG_TRC("Sent file: " << relPath << ": " << preprocess);
+
+    return ResourceAccessDetails(wopiSrc, urv[ACCESS_TOKEN]);
 }
 
 
