@@ -978,7 +978,7 @@ public:
     virtual void shutdown() override
     {
         _shutdownSignalled = true;
-        LOG_TRC("Async shutdown requested.");
+        LOG_TRC("Async shutdown requested");
     }
 
     virtual void ignoreInput() override
