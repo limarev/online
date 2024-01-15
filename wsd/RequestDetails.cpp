@@ -18,6 +18,7 @@
 #include "HostUtil.hpp"
 
 #include <Poco/URI.h>
+#include <sstream>
 #include "Exceptions.hpp"
 
 namespace
@@ -245,6 +246,33 @@ Poco::URI RequestDetails::sanitizeURI(const std::string& uri)
 
     LOG_DBG("Sanitized URI [" << uri << "] to [" << uriPublic.toString() << ']');
     return uriPublic;
+}
+
+std::string RequestDetails::createDocumentLoadURI(const std::string& wopiSrc,
+                                                  const std::vector<std::string>& options,
+                                                  const std::string& compat)
+{
+    // /cool/<encoded-document-URI+options>/ws?WOPISrc=<encoded-document-URI>&compat=/ws[/<sessionId>/<command>/<serial>]
+
+    const std::string decodedWopiSrc = Util::decodeURIComponent(wopiSrc);
+    std::string wopiSrcWithOptions = Util::decodeURIComponent(wopiSrc);
+    if (!options.empty())
+    {
+        wopiSrcWithOptions += '?';
+    }
+
+    for (const std::string& option : options)
+    {
+        wopiSrcWithOptions += option;
+        wopiSrcWithOptions += '&';
+    }
+
+    std::ostringstream oss;
+    oss << "/cool/" << Util::encodeURIComponent(wopiSrcWithOptions);
+    oss << "/ws?WOPISrc=" << Util::encodeURIComponent(decodedWopiSrc);
+    oss << "&compat=/ws" << compat;
+
+    return oss.str();
 }
 
 std::string RequestDetails::getLineModeKey(const std::string& /*access_token*/) const

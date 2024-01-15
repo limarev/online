@@ -143,6 +143,15 @@ public:
     /// Sanitize the URI and return the document-specific key.
     static std::string getDocKey(const std::string& uri) { return getDocKey(sanitizeURI(uri)); }
 
+    /// Creates a document-load URI from its components.
+    /// wopiSrc is typically encoded.
+    /// options are in the form of 'x=y' strings.
+    /// compat is in the form of '/sessionId/command/serial' string. Optional.
+    /// /cool/<encoded-document-URI+options>/ws?WOPISrc=<encoded-document-URI>&compat=/ws[/<sessionId>/<command>/<serial>]
+    static std::string createDocumentLoadURI(const std::string& wopiSrc,
+                                             const std::vector<std::string>& options,
+                                             const std::string& compat);
+
     // matches the WOPISrc if used. For load balancing
     // must be 2nd element in the path after /cool/<here>
     std::string getLegacyDocumentURI() const { return getField(Field::LegacyDocumentURI); }
