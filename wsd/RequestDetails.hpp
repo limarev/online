@@ -152,12 +152,48 @@ public:
                                              const std::vector<std::string>& options,
                                              const std::string& compat);
 
+    /// This is a per-document, per-user request key.
+    /// If a user makes two requests on the same document at the same time,
+    /// they will have the same request-key and we won't differentiate between them.
+    static std::string getRequestKey(const std::string& wopiSrc, const std::string& accessToken)
+    {
+        const std::string decodedWopiSrc = Util::decodeURIComponent(wopiSrc);
+        const Poco::URI wopiSrcSanitized = RequestDetails::sanitizeURI(decodedWopiSrc);
+
+        std::string requestKey = RequestDetails::getDocKey(wopiSrcSanitized);
+        requestKey += '_';
+        requestKey += accessToken;
+
+        return requestKey;
+    }
+
+    /// This is a per-document, per-user request key.
+    std::string getRequestKey() const
+    {
+        const std::string wopiSrc = getField(RequestDetails::Field::WOPISrc);
+        if (!wopiSrc.empty())
+        {
+            std::string accessToken;
+            getParamByName("access_token", accessToken);
+
+            return getRequestKey(wopiSrc, accessToken);
+        }
+
+        return std::string();
+    }
+
     // matches the WOPISrc if used. For load balancing
     // must be 2nd element in the path after /cool/<here>
     std::string getLegacyDocumentURI() const { return getField(Field::LegacyDocumentURI); }
 
     /// The DocumentURI, decoded. Doesn't contain WOPISrc or any other appendages.
     std::string getDocumentURI() const { return getField(Field::DocumentURI); }
+
+    /// Returns the document-specific key from the DocumentURI.
+    std::string getDocKey() const
+    {
+        return RequestDetails::getDocKey(RequestDetails::sanitizeURI(getDocumentURI()));
+    }
 
     /// The DocumentURI, decoded and sanitized. Doesn't contain WOPISrc or any other appendages.
     std::string getDocumentURISanitized() const
