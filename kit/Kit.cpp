@@ -1728,6 +1728,7 @@ private:
         _loKitDocument->setViewLanguage(viewId, lang.c_str());
         _loKitDocument->setViewTimezone(viewId, userTimezone.c_str());
         _loKitDocument->setAccessibilityState(viewId, accessibilityState);
+        _loKitDocument->setViewReadOnly(viewId, viewId % 2 == 0);
 
         // viewId's monotonically increase, and CallbackDescriptors are never freed.
         _viewIdToCallbackDescr.emplace(viewId,
