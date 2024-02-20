@@ -1,4 +1,4 @@
-{
+module.exports = {
   "extends": "eslint:recommended",
   "rules": {
     "camelcase": 2,
@@ -35,7 +35,9 @@
     "browser": true
   },
   "parserOptions": {
-    "ecmaVersion": 2017
+    "ecmaVersion": 2017,
+    "project": ["tsconfig.json", "admin/tsconfig.json"],
+    "tsconfigRootDir": __dirname,
   },
   "overrides": [
     {
@@ -57,7 +59,10 @@
         "@typescript-eslint/no-namespace": "off",
         "no-inner-declarations": "off",
         "no-constant-condition": "off",
-        "@typescript-eslint/triple-slash-reference": "off"
+        "@typescript-eslint/triple-slash-reference": "off",
+        "@typescript-eslint/require-await": "warn",
+        "@typescript-eslint/no-floating-promises": "error",
+        "@typescript-eslint/no-misused-promises": "error",
       }
     }
   ]

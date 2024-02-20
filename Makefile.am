@@ -638,7 +638,7 @@ eslint: browser/node_modules
 		--resolve-plugins-relative-to browser \
 		--ignore-path browser/.eslintignore \
 		--no-eslintrc \
-		--config browser/.eslintrc
+		--config browser/.eslintrc.js
 
 install-exec-hook:
 	cd $(DESTDIR)$(bindir) && \
