@@ -753,7 +753,7 @@ void StreamSocket::dumpState(std::ostream& os)
 
 void StreamSocket::send(Poco::Net::HTTPResponse& response)
 {
-    response.set("Server", HTTP_SERVER_STRING);
+    response.set("Server", http::getServerString());
     response.set("Date", Util::getHttpTimeNow());
 
     std::ostringstream oss;

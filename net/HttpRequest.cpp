@@ -9,7 +9,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <config.h>
+#include "config.h"
+#include "config_version.h"
 
 #include "HttpRequest.hpp"
 
@@ -690,6 +691,16 @@ std::shared_ptr<Session> Session::create(std::string host, Protocol protocol, in
 
     port = (port > 0 ? port : getDefaultPort(protocol));
     return std::shared_ptr<Session>(new Session(std::move(host), protocol, port));
+}
+
+std::string getAgentString()
+{
+    return "COOLWSD HTTP Agent " COOLWSD_VERSION;
+}
+
+std::string getServerString()
+{
+    return "COOLWSD HTTP Server " COOLWSD_VERSION;
 }
 
 } // namespace http
