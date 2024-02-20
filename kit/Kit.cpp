@@ -1739,6 +1739,13 @@ private:
                 viewCount << " view" << (viewCount != 1 ? "s." : "."));
 
         session->initWatermark();
+
+        if (char* viewRenderState = _loKitDocument->getViewRenderState())
+        {
+            session->setViewRenderState(viewRenderState);
+            free(viewRenderState);
+        }
+
         invalidateCanonicalId(session->getId());
 
         return _loKitDocument;
