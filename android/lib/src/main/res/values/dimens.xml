@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <dimen name="offset_24">24dp</dimen>
+    <dimen name="offset_12">12dp</dimen>
+
+</resources>

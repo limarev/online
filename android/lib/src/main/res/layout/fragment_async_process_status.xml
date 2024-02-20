@@ -1,39 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
+    android:gravity="center"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="@dimen/offset_24">
 
     <TextView
-        android:id="@+id/progress_dialog_text"
-        android:layout_width="match_parent"
+        android:id="@+id/status_text_view"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingBottom="24dp"
-        android:textAlignment="center" />
+        android:layout_marginBottom="@dimen/offset_12"
+        tools:text="Загрузка..." />
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
         <ProgressBar
-            android:id="@+id/progress_indeterminate"
+            android:id="@+id/indeterminate_progress_bar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:indeterminateOnly="true"
-            android:visibility="invisible"/>
+            android:visibility="visible" />
 
         <ProgressBar
-            android:id="@+id/progress_determinate"
+            android:id="@+id/determinate_progress_bar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:indeterminate="false"
-            android:max="100"
-            android:min="0"
-            android:visibility="visible" />
+            android:visibility="gone" />
+
     </FrameLayout>
 
 </LinearLayout>
