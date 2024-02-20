@@ -16,3 +16,5 @@
 /lib/src/debug/assets
 /lib/src/release/assets
 /lib/src/main/cpp/lib
+
+.DS_Store

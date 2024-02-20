@@ -326,14 +326,7 @@ std::unique_ptr<LocalStorage::LocalFileInfo> LocalStorage::getLocalFileInfo()
 
     // Set automatic userid and username.
     const std::string userId = std::to_string(LastLocalStorageId++);
-    std::string userNameString;
-
-#if MOBILEAPP
-    if (user_name != nullptr)
-        userNameString = std::string(user_name);
-#endif
-    if (userNameString.empty())
-        userNameString = "LocalUser#" + userId;
+    const std::string userNameString = "LocalUser#" + userId;
 
     return std::make_unique<LocalStorage::LocalFileInfo>("LocalUser" + userId, userNameString);
 }

@@ -1,0 +1,541 @@
+package org.libreoffice.androidlib.documentviewer
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.SharedPreferences
+import android.content.res.AssetManager
+import android.os.Build
+import android.webkit.JavascriptInterface
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.preference.PreferenceManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.libreoffice.androidlib.BuildConfig
+import org.libreoffice.androidlib.R
+import org.libreoffice.androidlib.data.AsyncProcessStatus
+import org.libreoffice.androidlib.data.ProgressType
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.Locale
+
+/**
+ * Вью модель для фрагмента [DocumentViewerFragment].
+ *
+ * @property applicationContext Контекст приложения.
+ *
+ * @author Уколов Александр 25.06.2021.
+ */
+@SuppressLint("StaticFieldLeak")
+internal class DocumentViewerViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
+
+    /**
+     * Нативный метод для создания COOLWSD.
+     *
+     * @param dataDir Путь до директории в памяти устройства.
+     * @param cacheDir Путь до директории в кэше устройства.
+     * @param apkFile Путь до пакета приложения, включая сам пакет.
+     * @param assetManager Менеджер ассетов.
+     * @param loadFileURL Исходный uri файла в виде строки для загрузки.
+     * @param uiMode Режим для пользовательского интерфейса.
+     */
+    external fun createCOOLWSD(
+        dataDir: String,
+        cacheDir: String,
+        apkFile: String,
+        assetManager: AssetManager,
+        loadFileURL: String,
+        uiMode: String,
+    )
+
+    /**
+     * Передает сообщение из JavaScript в C++ с помощью JNI,
+     * а затем в Android и наоборот.
+     *
+     * @param message Сообщение, которое состоит из двух параметров,
+     * разделенных знаком пробела.
+     */
+    external fun postMobileMessageNative(message: String)
+
+    private val _stringFileUrlToLoad = Channel<String>(Channel.CONFLATED)
+    val stringFileUrlToLoad: Flow<String> = _stringFileUrlToLoad.receiveAsFlow()
+
+    private val _asyncProcess = MutableStateFlow<AsyncProcessStatus?>(null)
+    val asyncProcess: StateFlow<AsyncProcessStatus?> = _asyncProcess.asStateFlow()
+
+    private val _progressValue = Channel<Int>(Channel.UNLIMITED)
+    val progressValue: Flow<Int> = _progressValue.receiveAsFlow()
+
+    private val _hyperlink = Channel<String>(Channel.CONFLATED)
+    val hyperlink: Flow<String> = _hyperlink.receiveAsFlow()
+
+    private val _fakeWebSocketOnMessageCalled = Channel<String>(Channel.UNLIMITED)
+    val fakeWebSocketOnMessageCalled: Flow<String> = _fakeWebSocketOnMessageCalled.receiveAsFlow()
+
+    @JavascriptInterface
+    override fun postMobileMessage(message: String) {
+        val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
+        if (beforeMessageFromWebView(messageAndParameter)) {
+            postMobileMessageNative(message)
+        }
+    }
+
+    @JavascriptInterface
+    override fun isChromeOS(): Boolean {
+        return false
+    }
+
+    @JavascriptInterface
+    override fun postMobileError(message: String) {
+        // Не используется в стандартной Android реализации Collabora.
+        // Вызывается из JavaScript, по этому добавили пустую реализацию.
+    }
+
+    @JavascriptInterface
+    override fun postMobileDebug(message: String) {
+        // Не используется в стандартной Android реализации Collabora.
+        // Вызывается из JavaScript, по этому добавили пустую реализацию.
+    }
+
+    /**
+     * Отправляет сообщение о том, что необходимо завершить работу
+     * с открытым документом. Как ни странно, в оригинале это сообщение
+     * отправляется в главном потоке. Наверное, жизненно необходимо
+     * дождаться окончания процесса, который связан с этим сообщением.
+     */
+    fun postMobileMessageNativeBye() {
+        postMobileMessageNative(MSG_BYE)
+    }
+
+    /**
+     * Этот метод вызывается из C++ кода через JNI.
+     * Вызов осуществляется не из главного потока.
+     *
+     * @param message Сообщение с данными.
+     */
+    fun callFakeWebsocketOnMessage(message: String) {
+        // Uri метода с JSON-параметром для выполнения в JavaScript.
+        val javaScriptMethodUri = "javascript:window.TheFakeWebSocket.onmessage({'data':$message});"
+        _fakeWebSocketOnMessageCalled.trySend(javaScriptMethodUri)
+
+        // Обновление состояния прогресс бара.
+        if (message.startsWith(MSG_PARAM_STATUS_INDICATOR) || message.startsWith(MSG_PARAM_ERROR)) {
+            if (message.startsWith(MSG_PARAM_STATUS_INDICATOR_VALUE)) {
+                val value = getProgressValue(message)
+                _progressValue.trySend(value)
+            } else if (message.startsWith(MSG_PARAM_STATUS_INDICATOR_FINISH) || message.startsWith(MSG_PARAM_ERROR)) {
+                stopAsyncProcess()
+            }
+        }
+    }
+
+    /**
+     * Выполняет подготовительные мероприятия перед загрузкой файла, а затем
+     * загружает файл.
+     *
+     * @param fileToLoad Файл для загрузки.
+     */
+    fun prepareAndLoadFile(fileToLoad: File) {
+        val stringFileUriToLoad = fileToLoad.toURI().toString()
+        val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad)
+        Log.d(TAG, "prepareAndLoadFile(): URI to load: $stringFileUriToLoad; URL to load: $stringFileUrlToLoad")
+        if (assetsWereExtracted()) {
+            afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
+        } else {
+            viewModelScope.launch {
+                startFirstFileLoading()
+                withContext(Dispatchers.IO) {
+                    val assetManager = applicationContext.assets
+                    val destinationPath = applicationContext.applicationInfo.dataDir
+                    copyUnpackAssetsRecursively(assetManager, UNPACK_ASSETS_DIRECTORY, destinationPath)
+                }
+                writeAssetsExtractedPreference()
+                afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
+            }
+        }
+    }
+
+    /**
+     * Получает значение индикатора загрузки из [message] в виде строки
+     * и преобразует его в число типа [Int].
+     *
+     * @param message Сообщение с данными.
+     * @return Значение индикатора загрузки.
+     */
+    private fun getProgressValue(message: String): Int {
+        val start = MSG_PARAM_STATUS_INDICATOR_VALUE.length
+        val end = message.indexOf(MSG_PARAM_DELIMITER, start)
+
+        return try {
+            message.substring(start, end).toInt()
+        } catch (e: IndexOutOfBoundsException) {
+            // TODO: Add exception handling.
+            0
+        } catch (e: NumberFormatException) {
+            // TODO: Add exception handling.
+            0
+        }
+    }
+
+    /**
+     * Метод, который выполняется после экспорта ассетов в память устройства.
+     *
+     * @param stringFileUriToLoad Uri файла в виде строки для загрузки.
+     * @param stringFileUrlToLoad Url файла в виде строки для загрузки.
+     */
+    private fun afterAssetsWereExtracted(stringFileUriToLoad: String, stringFileUrlToLoad: String) {
+        createCoolwsd(stringFileUriToLoad)
+        startDeterminateFileLoading()
+        _stringFileUrlToLoad.trySend(stringFileUrlToLoad)
+    }
+
+    /**
+     * Подготавливает url файла в виде строки для его загрузки.
+     *
+     * @param stringFileToLoadUri Uri файла в виде строки, который нужно загрузить.
+     * @return Url файла в виде строки, который нужно загрузить.
+     */
+    private fun buildFileUrlToLoad(stringFileToLoadUri: String): String =
+        StringBuilder()
+            .append("file:///android_asset/dist/cool.html")
+            .append("?file_path=$stringFileToLoadUri")
+            .append("&closebutton=1")
+            .append("&lang=${getCurrentLanguageTag()}")
+            .append("&permission=readonly")
+            .toString()
+
+    /**
+     * Обертка для нативного метода [createCOOLWSD].
+     *
+     * @param stringFileUriToLoad Uri файла в виде строки для загрузки.
+     */
+    private fun createCoolwsd(stringFileUriToLoad: String) {
+        createCOOLWSD(
+            dataDir = applicationContext.applicationInfo.dataDir,
+            cacheDir = applicationContext.cacheDir.absolutePath,
+            apkFile = applicationContext.packageResourcePath,
+            assetManager = applicationContext.assets,
+            loadFileURL = stringFileUriToLoad,
+            uiMode = UI_MODE_CLASSIC
+        )
+    }
+
+    /**
+     * Ищет ассеты и выполняет копирование каждого ассета из [sourcePath] в [destinationPath].
+     *
+     * @param assetManager Менеджер ассетов.
+     * @param sourcePath Путь источника копирования.
+     * @param destinationPath Путь назначения копирования.
+     */
+    private fun copyUnpackAssetsRecursively(assetManager: AssetManager, sourcePath: String, destinationPath: String) {
+        try {
+            assetManager.list(sourcePath)?.forEach { entity ->
+                val sourceEntityPath = "$sourcePath/$entity"
+                val destinationEntityPath = "$destinationPath/$entity"
+
+                // Определяем является ли сущность файловой системы файлом.
+                // Если сущность не содержит вложенные сущности, то это файл.
+                if (assetManager.list(sourceEntityPath)?.isEmpty() == true) {
+                    File(destinationPath).mkdirs()
+                    copyAsset(assetManager, sourceEntityPath, destinationEntityPath)
+                } else {
+                    copyUnpackAssetsRecursively(assetManager, sourceEntityPath, destinationEntityPath)
+                }
+            }
+        } catch (e: IOException) {
+            // TODO: Add exception handling.
+        } catch (e: Exception) {
+            // TODO: Add exception handling.
+        }
+    }
+
+    /**
+     * Копирует ассет из [sourcePath] в [destinationPath].
+     *
+     * @param assetManager Менеджер ассетов.
+     * @param sourcePath Путь источника копирования.
+     * @param destinationPath Путь назначения копирования.
+     */
+    private fun copyAsset(assetManager: AssetManager, sourcePath: String, destinationPath: String) {
+        BufferedInputStream(assetManager.open(sourcePath)).use { inputStream ->
+            BufferedOutputStream(FileOutputStream(destinationPath)).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
+    }
+
+    /**
+     * Возвращает true, если ассеты были скопированы
+     * в память устройства, иначе false.
+     */
+    private fun assetsWereExtracted(): Boolean =
+        readAssetsExtractedPreference() == BuildConfig.GIT_COMMIT
+
+    /**
+     * Возвращает значение преференса [ASSETS_EXTRACTED_GIT_COMMIT]
+     * или null, если преференса не существует.
+     */
+    private fun readAssetsExtractedPreference(): String? =
+        getSharedPreferences().getString(ASSETS_EXTRACTED_GIT_COMMIT, null)
+
+    /**
+     * Сохраняет значение [BuildConfig.GIT_COMMIT] в преференс
+     * с ключем [ASSETS_EXTRACTED_GIT_COMMIT].
+     */
+    private fun writeAssetsExtractedPreference(): Unit =
+        getSharedPreferences()
+            .edit()
+            .putString(ASSETS_EXTRACTED_GIT_COMMIT, BuildConfig.GIT_COMMIT)
+            .apply()
+
+    /**
+     * Возвращает преференсы по умолчанию.
+     */
+    private fun getSharedPreferences(): SharedPreferences =
+        PreferenceManager.getDefaultSharedPreferences(applicationContext)
+
+    /**
+     * Возвращает буквенный код языка активной локали.
+     */
+    private fun getCurrentLanguageTag(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            applicationContext.resources.configuration.locales.get(0).toLanguageTag()
+        } else {
+            @Suppress("DEPRECATION")
+            applicationContext.resources.configuration.locale.toLanguageTag()
+        }
+
+    /**
+     * Сообщает о том, что началась первая загрузка файла.
+     */
+    private fun startFirstFileLoading() {
+        _asyncProcess.value = AsyncProcessStatus(
+            inProgress = true,
+            statusText = applicationContext.getString(R.string.preparing_for_the_first_start_after_an_update),
+            progressType = ProgressType.INDETERMINATE
+        )
+    }
+
+    /**
+     * Сообщает о том, что началась загрузка файла с конечным прогресс баром.
+     */
+    private fun startDeterminateFileLoading() {
+        _asyncProcess.value = AsyncProcessStatus(
+            inProgress = true,
+            statusText = applicationContext.getString(R.string.loading),
+            progressType = ProgressType.DETERMINATE
+        )
+    }
+
+    /**
+     * Сообщает о том, что асинхронный процесс завершился.
+     */
+    private fun stopAsyncProcess() {
+        _asyncProcess.value = AsyncProcessStatus(
+            inProgress = false,
+            statusText = "",
+            progressType = null
+        )
+    }
+
+    /**
+     * Не содержит обработчиков некоторых сообщений за ненадобностью,
+     * а некоторые оставлены для совместимости.
+     *
+     * @param messageAndParameter Список, первый элемент которого - это сообщение,
+     * а второй - это параметр сообщения. Параметр является опциональным, его может не быть
+     * для некоторых сообщений.
+     * @return Вернет true, если [messageAndParameter] нужно обработать нативным методом,
+     * иначе вернет false.
+     */
+    private fun beforeMessageFromWebView(messageAndParameter: List<String>): Boolean {
+        when (messageAndParameter[0].uppercase(Locale.getDefault())) {
+            MSG_BYE -> {
+                return false
+            }
+            MSG_SLIDESHOW -> {
+                return false
+            }
+            MSG_MOBILEWIZARD -> {
+                return false
+            }
+            MSG_HYPERLINK -> {
+                _hyperlink.trySend(messageAndParameter[1])
+                return false
+            }
+            MSG_UNO -> {
+                when (messageAndParameter[1].uppercase()) {
+                    MSG_PARAM_UNO_PASTE -> {
+                        return false
+                    }
+                }
+            }
+            MSG_LOADWITHPASSWORD -> {
+                startDeterminateFileLoading()
+                return true
+            }
+            MSG_PRINT,
+            MSG_SAVE,
+            MSG_DOWNLOADAS,
+            MSG_DIM_SCREEN,
+            MSG_LIGHT_SCREEN,
+            HIDEPROGRESSBAR,
+            //MSG_EDITMODE,
+            MSG_REQUESTFILECOPY,
+            -> {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private companion object {
+        /**
+         * Имя директории с нераспакованными ассетами.
+         */
+        const val UNPACK_ASSETS_DIRECTORY = "unpack"
+
+        /**
+         * Параметр в [SharedPreferences], который определяет,
+         * нужно ли копировать ассеты в память устройства.
+         */
+        const val ASSETS_EXTRACTED_GIT_COMMIT = "ASSETS_EXTRACTED_GIT_COMMIT"
+
+        /**
+         * Режим для пользовательского интерфейса для обычных дисплеев.
+         */
+        const val UI_MODE_CLASSIC = "classic"
+
+        /**
+         * Разделитель для параметров, которые находятся в сообщении в методе [callFakeWebsocketOnMessage].
+         */
+        const val MSG_PARAM_DELIMITER = "'"
+
+        /**
+         * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
+         * и обозначет событие, которое связано с индикатором загрузки.
+         */
+        const val MSG_PARAM_STATUS_INDICATOR = "${MSG_PARAM_DELIMITER}statusindicator"
+
+        /**
+         * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
+         * и обозначет стартовый индекс значения индикатора загрузки.
+         */
+        const val MSG_PARAM_STATUS_INDICATOR_VALUE = "${MSG_PARAM_DELIMITER}statusindicatorsetvalue: "
+
+        /**
+         * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
+         * и обозначет завершение процесса загрузки документа.
+         */
+        const val MSG_PARAM_STATUS_INDICATOR_FINISH = "${MSG_PARAM_DELIMITER}statusindicatorfinish:"
+
+        /**
+         * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
+         * и обозначет ошибку.
+         */
+        const val MSG_PARAM_ERROR = "${MSG_PARAM_DELIMITER}error:"
+
+        /**
+         * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
+         * и отвечает за вставку значений.
+         */
+        const val MSG_PARAM_UNO_PASTE = ".UNO:PASTE"
+
+        /**
+         * Сообщение для инициации события закрытия документа.
+         * При этом в оригинальном коде выполняется операция по
+         * сохранению документа в Intent. Нам это не нужно,
+         * по этому обрабатывать это сообщение мы не будем,
+         * но вызвать его из Android кода нужно обязательно,
+         * так как оно обрабатывается еще и нативно.
+         */
+        const val MSG_BYE = "BYE"
+
+        /**
+         * Сообщение для инициации события распечатки документа.
+         * Функционал у нас запрещен.
+         */
+        const val MSG_PRINT = "PRINT"
+
+        /**
+         * Сообщение для инициации события запуска слайд-шоу презентации.
+         * Функционал был перенесен на Android.
+         */
+        const val MSG_SLIDESHOW = "SLIDESHOW"
+
+        /**
+         * Сообщение для инициации события сохранения документа.
+         * Функционал у нас запрещен.
+         */
+        const val MSG_SAVE = "SAVE"
+
+        /**
+         * Сообщение для инициации события экспорта документа.
+         * Функционал у нас запрещен.
+         */
+        const val MSG_DOWNLOADAS = "DOWNLOADAS"
+
+        /**
+         * Сообщение для инициации события пробуждения экрана.
+         * Функционал не актуален.
+         */
+        const val MSG_DIM_SCREEN = "DIM_SCREEN"
+
+        /**
+         * Сообщение для инициации события пробуждения экрана.
+         * Функционал не актуален.
+         */
+        const val MSG_LIGHT_SCREEN = "LIGHT_SCREEN"
+        const val HIDEPROGRESSBAR = "HIDEPROGRESSBAR"
+
+        /**
+         * Сообщение для инициации события выделения с помощью волшебной палочки.
+         * Функционал у нас запрещен.
+         */
+        const val MSG_MOBILEWIZARD = "MOBILEWIZARD"
+
+        /**
+         * Сообщение для инициации события перехода по гиперссылке из документа.
+         */
+        const val MSG_HYPERLINK = "HYPERLINK"
+
+        /**
+         * Сообщение для идентификации режима работы с документом (можно или нельзя редактировать).
+         * Функционал у нас запрещен (по умолчанию Readonly режим).
+         */
+        const val MSG_EDITMODE = "EDITMODE"
+
+        /**
+         * Сообщение для инициации события открытия документа с паролем.
+         * Функционал у нас отсутствует.
+         */
+        const val MSG_LOADWITHPASSWORD = "LOADWITHPASSWORD"
+
+        /**
+         * Сообщение для инициации события копирования документа.
+         * Функционал у нас запрещен.
+         */
+        const val MSG_REQUESTFILECOPY = "REQUESTFILECOPY"
+
+        /**
+         * Сообщение относится к ядру или Collabora Office или LibreOffice.
+         * Отвечает за операции с ClipBoard.
+         * Функционал у нас запрещен.
+         */
+        const val MSG_UNO = "UNO"
+
+        const val TAG = "DocumentViewerViewModel"
+    }
+}

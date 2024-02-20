@@ -1,0 +1,141 @@
+name: Collabora
+run-name: Build collabora
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      lo_ref:
+        description: 'Commit hash of LibreOffice core repository'
+        default: 'c5262f7f0d259a903ee33595ff15386a7c4c8af6'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: self-hosted
+    container:
+      image: klimarev/lo_co_build_env:1.10
+      options:
+        --user ghactions 
+        -v /opt/libreoffice/android_armeabi-v7a_core_co-23.05.6-2:/opt/libreoffice/android_armeabi-v7a_core
+        -v /opt/libreoffice/android_arm64-v8a_core_co-23.05.6-2:/opt/libreoffice/android_arm64-v8a_core
+        -v /opt/libreoffice/android_x86_core_co-23.05.6-2:/opt/libreoffice/android_x86_core
+        -v /opt/libreoffice/android_x86_64_core_co-23.05.6-2:/opt/libreoffice/android_x86_64_core
+    env:
+      app: android/build/app/outputs/apk/debug
+      lib: android/build/lib/outputs/aar
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build info 
+        run: |
+          echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+          echo "🐧 This job is now running on a ${{ runner.os }} server!"
+          echo "🔎 This job builds Collabora fork ${{ github.ref }} for adnroid."
+          echo "This job is run from $(whoami)"
+          echo "Current directory is $(pwd)"
+          echo "Current directory structure: $(ls -la)"
+          echo "/opt/libreoffice directory structure: $(ls -la /opt/libreoffice)"
+          echo "CollaboraOnline directory size: $(du -sh .)"
+
+      - name: Build ${{ github.ref }}
+        run: |
+          export workspace=/opt/libreoffice
+          ./autogen.sh
+          ./configure --enable-androidapp \
+                      --with-lo-builddir=$workspace/android_armeabi-v7a_core:$workspace/android_arm64-v8a_core:$workspace/android_x86_core:$workspace/android_x86_64_core \
+                      --with-poco-includes=$poco/include:$poco/include:$poco/include:$poco/include \
+                      --with-poco-libs=$poco/armeabi-v7a/lib:$poco/arm64-v8a/lib:$poco/x86/lib:$poco/x86_64/lib \
+                      --with-zstd-includes=$zstd/armeabi-v7a/include:$zstd/arm64-v8a/include:$zstd/x86/include:$zstd/x86_64/include \
+                      --with-zstd-libs=$zstd/armeabi-v7a/lib:$zstd/arm64-v8a/lib:$zstd/x86/lib:$zstd/x86_64/lib \
+                      --disable-setcap \
+                      --enable-silent-rules
+          make
+          cd android
+          ./gradlew --parallel --build-cache assembleDebug
+        env:
+          poco: /opt/android-poco
+          zstd: /opt/android-zstd
+          ANDROID_SDK_ROOT: /opt/android_sdk
+
+      - name: Check if ${{ env.app }} contains build files
+        continue-on-error: true
+        run: |
+          du -sh ${{ env.app }}
+          ls -la ${{ env.app }}
+
+      - name: Check if ${{ env.lib }} contains build files
+        continue-on-error: true
+        run: |
+          du -sh ${{ env.lib }}
+          ls -la ${{ env.lib }}
+
+      - name: 'Upload Artifact ${{ env.app }}/app-arm64-v8a-debug.apk'
+        if: (!startsWith(github.ref, 'refs/tags/release-'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-arm64-v8a-debug.apk.zip
+          path: |
+            ${{ env.app }}/app-arm64-v8a-debug.apk
+          compression-level: 0 # no compression
+
+      - name: 'Upload Artifact ${{ env.app }}/app-armeabi-v7a-debug.apk'
+        if: (!startsWith(github.ref, 'refs/tags/release-'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-armeabi-v7a-debug.apk.zip
+          path: |
+            ${{ env.app }}/app-armeabi-v7a-debug.apk
+          compression-level: 0 # no compression
+
+      - name: 'Upload Artifact ${{ env.app }}/app-x86_64-debug.apk'
+        if: (!startsWith(github.ref, 'refs/tags/release-'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-x86_64-debug.apk.zip
+          path: |
+            ${{ env.app }}/app-x86_64-debug.apk
+          compression-level: 0 # no compression
+
+      - name: 'Upload Artifact ${{ env.app }}/app-x86-debug.apk'
+        if: (!startsWith(github.ref, 'refs/tags/release-'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-x86-debug.apk.zip
+          path: |
+            ${{ env.app }}/app-x86-debug.apk
+          compression-level: 0 # no compression
+
+      - name: 'Upload Artifact ${{ env.lib }}/lib-debug.aar'
+        if: (!startsWith(github.ref, 'refs/tags/release-'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: lib-debug.aar.zip
+          path: ${{ env.lib }}/lib-debug.aar
+          compression-level: 0 # no compression
+
+      # - name: 'Upload Artifact ${{ env.lib }}/lib-release.aar'
+      #   if: (!startsWith(github.ref, 'refs/tags/release-'))
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: lib-release.aar.zip
+      #     path: ${{ env.lib }}/lib-release.aar
+      #     compression-level: 0 # no compression
+          
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/release-')
+        uses: softprops/action-gh-release@v1
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          generate_release_notes: true
+          target_commitish: develop
+          prerelease: false
+          files: |
+            ${{ env.app }}/*.apk
+            ${{ env.lib }}/*.aar
+      
+      - run: echo "🍏 This job's status is ${{ job.status }}."

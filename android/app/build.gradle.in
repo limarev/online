@@ -18,7 +18,7 @@ android {
         resValue "string", "info_url", "${liboInfoURL}"
         resValue "string", "online_version_hash", "${liboOVersionHash}"
         resValue "string", "core_version_hash", "${liboCoreVersionHash}"
-        resValue "string", "image_draw_header", "@drawable/drawer_header"
+        //resValue "string", "image_draw_header", "@drawable/drawer_header"
         manifestPlaceholders = [ appIcon: "${liboLauncherIcon}" ]
         buildConfigField "boolean", "APP_HAS_BRANDING", "${liboHasBranding}"
     }
@@ -33,6 +33,7 @@ android {
 
     lintOptions {
         disable 'MissingTranslation', 'ExtraTranslation'
+        abortOnError false
     }
 
     buildTypes {

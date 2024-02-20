@@ -28,18 +28,47 @@ const int SHOW_JS_MAXLEN = 70;
 
 int coolwsd_server_socket_fd = -1;
 
-const char* user_name;
-
 static std::string fileURL;
 static int fakeClientFd;
 static int closeNotificationPipeForForwardingThread[2] = {-1, -1};
 static JavaVM* javaVM = nullptr;
 static bool lokInitialized = false;
-static std::mutex coolwsdRunningMutex;
 
-// Remember the reference to the LOActivity
-jclass g_loActivityClz = nullptr;
-jobject g_loActivityObj = nullptr;
+/*
+ * Флаг, который разрешает или запрещает обрабатывать сообщения,
+ * которые адресованы COOLWSD. Добавлен в связи с багом.
+ *
+ * Описание бага:
+ * - открываем документ;
+ * - увеличиваем и быстро скроллим до серой части экрана;
+ * - быстро нажимаем на устройстве кнопку «назад»;
+ * - снова открываем документ;
+ * - наблюдаем диалоговое окно с прогресс баром, которое никогда не закроется, а документ никогда не загрузится.
+ *
+ * Я не стал продолжать разбираться в том, что происходит глубже в коде (может позже),
+ * но одно действие точно не должно выполняться - это передача сообщений в COOLWSD
+ * после отправки сообщения BYE. Потому что при отправке сообщения BYE происходит
+ * деинициализация демона веб-сервиса и корректное закрытие потоков с ожиданием
+ * их завершения на нужном потоке.
+ *
+ * Сообщения, отправленные после BYE что-то ломают и вновь созданный поток с
+ * именем websrv_poll перестает выполнять свои обязанности, а именно:
+ * вызывать связанный с ним метод и порождать поток docbroker_n (где n -
+ * это порядковый номер потока брокера в текущей сессии, которая запускается в
+ * момент открытия документа), который работает с классом DocumentBroker, который
+ * собственно и отвечает за загрузку документа. При этом COOLWSD остается
+ * проинициализированным и выполняет бесконечный цикл с какой-то проблемой внутри
+ * цепочки вызовов методов.
+ *
+ * Собственно, так как, этот флаг используется и в дальнейшем должен использоваться
+ * только в одном потоке, принято решение сделать его статичным и не атомарным. На
+ * мой взгляд - это самый простой и действенный вариант, который нас должен устроить.
+ */
+static bool canReceiveMobileMessages = false;
+
+// Remember the reference to the DocumentViewerViewModel
+jclass g_documentViewerViewModelClz = nullptr;
+jobject g_documentViewerViewModelObj = nullptr;
 
 extern "C" JNIEXPORT jint JNICALL
 JNI_OnLoad(JavaVM* vm, void*) {
@@ -54,11 +83,9 @@ JNI_OnLoad(JavaVM* vm, void*) {
 
     // Uncomment the following to see the logs from the core too
     //setenv("SAL_LOG", "+WARN+INFO", 0);
-#if ENABLE_DEBUG
+
     Log::initialize("Mobile", "debug", false, false, {});
-#else
-    Log::initialize("Mobile", "information", false, false, {});
-#endif
+
     return JNI_VERSION_1_6;
 }
 
@@ -156,8 +183,8 @@ static void send2JS(const JNIThreadContext &jctx, const std::vector<char>& buffe
 
     JNIEnv *env = jctx.getEnv();
     jstring jstr = env->NewStringUTF(js.c_str());
-    jmethodID callFakeWebsocket = env->GetMethodID(g_loActivityClz, "callFakeWebsocketOnMessage", "(Ljava/lang/String;)V");
-    env->CallVoidMethod(g_loActivityObj, callFakeWebsocket, jstr);
+    jmethodID callFakeWebsocket = env->GetMethodID(g_documentViewerViewModelClz, "callFakeWebsocketOnMessage", "(Ljava/lang/String;)V");
+    env->CallVoidMethod(g_documentViewerViewModelObj, callFakeWebsocket, jstr);
     env->DeleteLocalRef(jstr);
 
     if (env->ExceptionCheck())
@@ -170,8 +197,8 @@ void postDirectMessage(std::string message)
     JNIEnv *env = ctx.getEnv();
 
     jstring jstr = env->NewStringUTF(message.c_str());
-    jmethodID callPostMobileMessage = env->GetMethodID(g_loActivityClz, "postMobileMessage", "(Ljava/lang/String;)V");
-    env->CallVoidMethod(g_loActivityObj, callPostMobileMessage, jstr);
+    jmethodID callPostMobileMessage = env->GetMethodID(g_documentViewerViewModelClz, "postMobileMessage", "(Ljava/lang/String;)V");
+    env->CallVoidMethod(g_documentViewerViewModelObj, callPostMobileMessage, jstr);
     env->DeleteLocalRef(jstr);
 
     if (env->ExceptionCheck())
@@ -183,17 +210,15 @@ void closeDocument()
 {
     // Close one end of the socket pair, that will wake up the forwarding thread that was constructed in HULLO
     fakeSocketClose(closeNotificationPipeForForwardingThread[0]);
-    LOG_DBG("Waiting for Lokit to finish...");
-    std::unique_lock<std::mutex> lokitLock(COOLWSD::lokit_main_mutex);
-    LOG_DBG("Lokit has finished.");
+
     LOG_DBG("Waiting for COOLWSD to finish...");
-    std::unique_lock<std::mutex> coolwsdLock(coolwsdRunningMutex);
+    std::unique_lock<std::mutex> lock(COOLWSD::lokit_main_mutex);
     LOG_DBG("COOLWSD has finished.");
 }
 
 /// Handle a message from JavaScript.
 extern "C" JNIEXPORT void JNICALL
-Java_org_libreoffice_androidlib_LOActivity_postMobileMessageNative(JNIEnv *env, jobject, jstring message)
+Java_org_libreoffice_androidlib_documentviewer_DocumentViewerViewModel_postMobileMessageNative(JNIEnv *env, jobject, jstring message)
 {
     const char *string_value = env->GetStringUTFChars(message, nullptr);
 
@@ -207,6 +232,10 @@ Java_org_libreoffice_androidlib_LOActivity_postMobileMessageNative(JNIEnv *env, 
 
         if (strcmp(string_value, "HULLO") == 0)
         {
+            // Устанавливаем флаг в true, чтобы дать возможность коду
+            // принимать сообщения после инициализации.
+            canReceiveMobileMessages = true;
+
             // Now we know that the JS has started completely
 
             // Contact the permanently (during app lifetime) listening COOLWSD server
@@ -279,22 +308,50 @@ Java_org_libreoffice_androidlib_LOActivity_postMobileMessageNative(JNIEnv *env, 
         }
         else if (strcmp(string_value, "BYE") == 0)
         {
+            // Устанавливаем флаг в false, чтобы запретить коду
+            // принимать сообщения после деинициализации.
+            canReceiveMobileMessages = false;
+
             LOG_DBG("Document window terminating on JavaScript side. Closing our end of the socket.");
 
             closeDocument();
         }
         else
         {
-            // Send the message to COOLWSD
-            char *string_copy = strdup(string_value);
+            // С этого момента мы можем принимать сообщения от андроида
+            // и передавать их дальше по пайплайну.
+            if (canReceiveMobileMessages) {
 
-            struct pollfd pollfd;
-            pollfd.fd = currentFakeClientFd;
-            pollfd.events = POLLOUT;
-            fakeSocketPoll(&pollfd, 1, -1);
-            fakeSocketWrite(currentFakeClientFd, string_copy, strlen(string_copy));
+                // Копируем сообщение.
+                char *string_copy = strdup(string_value);
 
-            free(string_copy);
+                // При интеграции коллаборы и AirWatch есть баг, когда на уровне c++ выбрасывается исключение
+                // из-за неверного значения одного параметра (part) в сообщении с идентификатором tilecombine.
+                // Для того, чтобы его устранить нужно не обрабатывать сообщение с этим неверным параметром.
+                char *invalid_part_found = nullptr;
+
+                const char *tile_combine = "tilecombine";
+                char *tile_combine_found = strstr(string_copy, tile_combine);
+                if (tile_combine_found != nullptr) {
+                    const char *invalid_part = "part=-1";
+                    invalid_part_found = strstr(string_copy, invalid_part);
+                }
+
+                // Если "part=-1" не был найден, то отправляем сообщение
+                // дальше по пайплайну, иначе ничего не нужно предпринимать.
+                if (invalid_part_found == nullptr) {
+                    struct pollfd pollfd {
+                        .fd = currentFakeClientFd,
+                        .events = POLLOUT
+                    };
+
+                    fakeSocketPoll(&pollfd, 1, -1);
+                    fakeSocketWrite(currentFakeClientFd, string_copy, strlen(string_copy));
+                }
+
+                // Освобождаем память, занятую дубликатом сообщения.
+                free(string_copy);
+            }
         }
     }
     else
@@ -305,17 +362,17 @@ extern "C" jboolean libreofficekit_initialize(JNIEnv* env, jstring dataDir, jstr
 
 /// Create the COOLWSD instance.
 extern "C" JNIEXPORT void JNICALL
-Java_org_libreoffice_androidlib_LOActivity_createCOOLWSD(JNIEnv *env, jobject instance, jstring dataDir, jstring cacheDir, jstring apkFile, jobject assetManager, jstring loadFileURL, jstring uiMode, jstring userName)
+Java_org_libreoffice_androidlib_documentviewer_DocumentViewerViewModel_createCOOLWSD(JNIEnv *env, jobject instance, jstring dataDir, jstring cacheDir, jstring apkFile, jobject assetManager, jstring loadFileURL, jstring uiMode)
 {
     fileURL = std::string(env->GetStringUTFChars(loadFileURL, nullptr));
 
-    // remember the LOActivity class and object to be able to call back
-    env->DeleteGlobalRef(g_loActivityClz);
-    env->DeleteGlobalRef(g_loActivityObj);
+    // remember the DocumentViewerViewModel class and object to be able to call back
+    env->DeleteGlobalRef(g_documentViewerViewModelClz);
+    env->DeleteGlobalRef(g_documentViewerViewModelObj);
 
     jclass clz = env->GetObjectClass(instance);
-    g_loActivityClz = (jclass) env->NewGlobalRef(clz);
-    g_loActivityObj = env->NewGlobalRef(instance);
+    g_documentViewerViewModelClz = (jclass) env->NewGlobalRef(clz);
+    g_documentViewerViewModelObj = env->NewGlobalRef(instance);
 
     // already initialized?
     if (lokInitialized)
@@ -326,8 +383,6 @@ Java_org_libreoffice_androidlib_LOActivity_createCOOLWSD(JNIEnv *env, jobject in
     }
     const std::string userInterfaceMode = std::string(env->GetStringUTFChars(uiMode, nullptr));
     setupKitEnvironment(userInterfaceMode);
-    static const std::string userNameString = std::string(env->GetStringUTFChars(userName, nullptr));
-    user_name = userNameString.c_str();
     lokInitialized = true;
     libreofficekit_initialize(env, dataDir, cacheDir, apkFile, assetManager);
 
@@ -348,10 +403,9 @@ Java_org_libreoffice_androidlib_LOActivity_createCOOLWSD(JNIEnv *env, jobject in
                     {
                         LOG_DBG("Creating COOLWSD");
                         {
-                            std::unique_lock<std::mutex> lock(coolwsdRunningMutex);
                             fakeClientFd = fakeSocketSocket();
                             LOG_DBG("createCOOLWSD created fakeClientFd: " << fakeClientFd);
-                            std::unique_ptr<COOLWSD> coolwsd = std::make_unique<COOLWSD>();
+                            std::unique_ptr<COOLWSD> coolwsd(new COOLWSD());
                             coolwsd->run(1, argv);
                         }
                         LOG_DBG("One run of COOLWSD completed");
@@ -362,26 +416,20 @@ Java_org_libreoffice_androidlib_LOActivity_createCOOLWSD(JNIEnv *env, jobject in
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_org_libreoffice_androidlib_LOActivity_saveAs(JNIEnv *env, jobject,
-                                                  jstring fileUri_, jstring format_,
-                                                  jstring options_) {
+Java_org_libreoffice_androidlib_slideshow_SlideShowViewModel_saveAs(JNIEnv *env, jobject,
+                                                  jstring fileUri_, jstring format_) {
     const char *fileUri = env->GetStringUTFChars(fileUri_, 0);
     const char *format = env->GetStringUTFChars(format_, 0);
-    const char *options = nullptr;
-    if (options_ != nullptr)
-        options = env->GetStringUTFChars(options_, 0);
 
-    getLOKDocumentForAndroidOnly()->saveAs(fileUri, format, options);
+    getLOKDocumentForAndroidOnly()->saveAs(fileUri, format, nullptr);
 
     env->ReleaseStringUTFChars(fileUri_, fileUri);
     env->ReleaseStringUTFChars(format_, format);
-    if (options_ != nullptr)
-        env->ReleaseStringUTFChars(options_, options);
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_org_libreoffice_androidlib_LOActivity_postUnoCommand(JNIEnv* pEnv, jobject,
+Java_org_libreoffice_androidlib_documentviewer_DocumentViewerViewModel_postUnoCommand(JNIEnv* pEnv, jobject,
                                                           jstring command, jstring arguments, jboolean bNotifyWhenFinished)
 {
     const char* pCommand = pEnv->GetStringUTFChars(command, nullptr);
@@ -415,7 +463,7 @@ const char* copyJavaString(JNIEnv* pEnv, jstring aJavaString)
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_org_libreoffice_androidlib_LOActivity_getClipboardContent(JNIEnv *env, jobject, jobject lokClipboardData)
+Java_org_libreoffice_androidlib_documentviewer_DocumentViewerViewModel_getClipboardContent(JNIEnv *env, jobject, jobject lokClipboardData)
 {
     const char** mimeTypes = nullptr;
     size_t outCount = 0;
@@ -514,7 +562,7 @@ Java_org_libreoffice_androidlib_LOActivity_getClipboardContent(JNIEnv *env, jobj
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_org_libreoffice_androidlib_LOActivity_setClipboardContent(JNIEnv *env, jobject, jobject lokClipboardData) {
+Java_org_libreoffice_androidlib_documentviewer_DocumentViewerViewModel_setClipboardContent(JNIEnv *env, jobject, jobject lokClipboardData) {
     jclass class_ArrayList= env->FindClass("java/util/ArrayList");
     jmethodID methodId_ArrayList_ToArray = env->GetMethodID(class_ArrayList, "toArray", "()[Ljava/lang/Object;");
 
@@ -560,7 +608,7 @@ Java_org_libreoffice_androidlib_LOActivity_setClipboardContent(JNIEnv *env, jobj
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_org_libreoffice_androidlib_LOActivity_paste(JNIEnv *env, jobject, jstring inMimeType, jbyteArray inData) {
+Java_org_libreoffice_androidlib_documentviewer_DocumentViewerViewModel_paste(JNIEnv *env, jobject, jstring inMimeType, jbyteArray inData) {
     const char* mimeType = env->GetStringUTFChars(inMimeType, nullptr);
 
     size_t dataArrayLength = env->GetArrayLength(inData);

@@ -1,4 +1,9 @@
-apply plugin: 'com.android.library'
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
+    id 'kotlin-kapt'
+    id 'kotlin-parcelize'
+}
 
 // buildhost settings - paths and the like
 apply from: 'libSettings.gradle'
@@ -11,12 +16,12 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 33
-        versionCode 1
-        versionName "1.0"
+        versionCode 110
+        versionName "1.1.0"
 
         resValue "string", "app_name", "${liboAppName}"
         buildConfigField "String", "GIT_COMMIT", "\"${liboOVersionHash}\""
-        buildConfigField "boolean", "GOOGLE_PLAY_ENABLED", "${liboGooglePlay}"
+        //buildConfigField "boolean", "GOOGLE_PLAY_ENABLED", "${liboGooglePlay}"
 
         externalNativeBuild {
             cmake {
@@ -63,6 +68,10 @@ android {
             buildStagingDirectory "${rootProject.getBuildDir()}/cmake"
         }
     }
+
+    buildFeatures {
+        viewBinding true
+    }
 }
 
 dependencies {
@@ -71,6 +80,15 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+
+    implementation 'androidx.activity:activity-ktx:1.2.3'
+    implementation 'androidx.fragment:fragment-ktx:1.3.5'
+    implementation 'androidx.preference:preference-ktx:1.1.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.5.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.4.0-alpha02'
+    implementation "androidx.lifecycle:lifecycle-common-java8:2.3.1"
 
     // https://stackoverflow.com/questions/75263047/duplicate-class-in-kotlin-android
     constraints {

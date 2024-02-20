@@ -222,6 +222,7 @@ m4_ifelse(MOBILEAPP,[true],
         and width, this being inside the smaller "document-container" will
         cause the content to overflow, creating scrollbars -->
 
+    <div style="display: none">
     <nav class="main-nav" role="navigation">
       <!-- Mobile menu toggle button (hamburger/x icon) -->
       <input id="main-menu-state" type="checkbox" style="display: none"/>
@@ -259,6 +260,7 @@ m4_ifelse(MOBILEAPP,[true],
        <td colspan="4" id="formulabar" style="display: none"></td>
      </tr>
     </table>
+    </div>
 
     <input id="insertgraphic" aria-labelledby="menu-insertgraphic" type="file" accept="image/*" style="position: fixed; top: -100em">
     <input id="selectbackground" aria-labelledby="menu-selectbackground" type="file" accept="image/*" style="position: fixed; top: -100em">
