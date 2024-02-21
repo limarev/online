@@ -3,7 +3,7 @@ run-name: Build collabora
 
 on:
   push:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       lo_ref:
         description: 'Commit hash of LibreOffice core repository'
