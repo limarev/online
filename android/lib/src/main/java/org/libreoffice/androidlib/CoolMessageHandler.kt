@@ -6,7 +6,7 @@ package org.libreoffice.androidlib
  *
  * @author Уколов Александр 25.06.2021.
  */
-internal interface CoolMessageHandler {
+interface CoolMessageHandler {
 
     /**
      * Принимает сообщения от JavaScript. Используется вместо связи через WebSocket.

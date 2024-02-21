@@ -37,6 +37,9 @@ import java.util.Locale
 @SuppressLint("StaticFieldLeak")
 open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
 
+    init {
+        System.loadLibrary("androidapp")
+    }
     /**
      * Нативный метод для создания LOOLWSD.
      *
