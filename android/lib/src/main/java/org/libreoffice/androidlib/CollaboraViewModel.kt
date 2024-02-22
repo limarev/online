@@ -81,6 +81,9 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     protected val _asyncProcess = MutableStateFlow<AsyncProcessStatus?>(null)
     val asyncProcess: StateFlow<AsyncProcessStatus?> = _asyncProcess.asStateFlow()
 
+    protected val _isEditMode = MutableStateFlow<Boolean>(false)
+    val isEditMode: StateFlow<Boolean> = _isEditMode.asStateFlow()
+
     protected val _progressValue = Channel<Int>(Channel.UNLIMITED)
     val progressValue: Flow<Int> = _progressValue.receiveAsFlow()
 
@@ -403,10 +406,13 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             MSG_DIM_SCREEN,
             MSG_LIGHT_SCREEN,
             HIDEPROGRESSBAR,
-            MSG_EDITMODE,
             MSG_REQUESTFILECOPY,
             -> {
                 return false
+            }
+            MSG_EDITMODE -> {
+                _isEditMode.value = messageAndParameter[1] == "on"
+                return true
             }
         }
 
