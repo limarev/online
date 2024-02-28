@@ -129,6 +129,13 @@ jobs:
           path: ${{ env.lib }}/lib-release.aar
           compression-level: 0 # no compression
 
+      - name: Create archive for release
+        if: startsWith(github.ref, 'refs/tags/release-')
+        run: |
+          cd ${{ env.lib }}
+          tar --totals -czf lib-debug.aar.tgz lib-debug.aar
+          tar --totals -czf lib-release.aar.tgz lib-release.aar
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/release-')
         uses: softprops/action-gh-release@v1
@@ -140,5 +147,6 @@ jobs:
           files: |
             ${{ env.app }}/*.apk
             ${{ env.lib }}/*.aar
+            ${{ env.lib }}/*.tgz
       
       - run: echo "🍏 This job's status is ${{ job.status }}."
