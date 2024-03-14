@@ -7,6 +7,9 @@ import android.content.res.AssetManager
 import android.os.Build
 import android.webkit.JavascriptInterface
 import androidx.lifecycle.ViewModel
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +38,10 @@ import java.util.Locale
  * @author Уколов Александр 25.06.2021.
  */
 @SuppressLint("StaticFieldLeak")
-open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
+open class CollaboraViewModel @AssistedInject constructor (
+    private val applicationContext: Context,
+    @Assisted private val userEmail: String,
+) : ViewModel(), CoolMessageHandler {
 
     init {
         System.loadLibrary("androidapp")
@@ -239,7 +245,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             assetManager = applicationContext.assets,
             loadFileURL = stringFileUriToLoad,
             uiMode = UI_MODE_CLASSIC,
-            userName = "Guest User"
+            userName = userEmail
         )
     }
 
@@ -411,6 +417,11 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         }
 
         return true
+    }
+
+    @AssistedFactory
+    interface Factory {
+        fun create(@Assisted userEmail: String): CollaboraViewModel
     }
 
     protected companion object {
