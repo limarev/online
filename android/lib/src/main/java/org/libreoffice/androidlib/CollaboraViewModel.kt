@@ -90,6 +90,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     protected val _fakeWebSocketOnMessageCalled = Channel<String>(Channel.UNLIMITED)
     val fakeWebSocketOnMessageCalled: Flow<String> = _fakeWebSocketOnMessageCalled.receiveAsFlow()
 
+    private var _userName : String = ""
+
     @JavascriptInterface
     override open fun postMobileMessage(message: String) {
         val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
@@ -154,7 +156,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param permission указывает, открываем файл для просмотра или редактирования readonly/edit.
      * @param fileToLoad Файл для загрузки.
      */
-    open fun prepareAndLoadFile(fileToLoad: File, permission : String) {
+    open fun prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
+        _userName = userName
         viewModelScope.launch {
             val stringFileUriToLoad = fileToLoad.toURI().toString()
             val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad, permission)
@@ -239,7 +242,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             assetManager = applicationContext.assets,
             loadFileURL = stringFileUriToLoad,
             uiMode = UI_MODE_CLASSIC,
-            userName = "Guest User"
+            userName = _userName
         )
     }
 
