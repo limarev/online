@@ -3,6 +3,7 @@ plugins {
     id 'kotlin-android'
     id 'kotlin-kapt'
     id 'kotlin-parcelize'
+    id 'dagger.hilt.android.plugin'
 }
 
 // buildhost settings - paths and the like
@@ -81,6 +82,9 @@ dependencies {
     implementation 'androidx.activity:activity-ktx:1.6.1'
     implementation 'androidx.fragment:fragment-ktx:1.6.2'
     implementation 'androidx.preference:preference-ktx:1.2.1'
+
+    implementation 'com.google.dagger:hilt-android:2.50'
+    kapt 'com.google.dagger:hilt-compiler:2.50'
 
     // https://stackoverflow.com/questions/75263047/duplicate-class-in-kotlin-android
     //constraints {
