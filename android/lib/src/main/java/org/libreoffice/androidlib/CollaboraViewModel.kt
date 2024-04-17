@@ -376,14 +376,10 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      */
     protected open fun beforeMessageFromWebView(messageAndParameter: List<String>): Boolean {
         when (messageAndParameter[0].uppercase(Locale.getDefault())) {
-            MSG_BYE -> {
-                return false
-            }
-            MSG_SLIDESHOW -> {
-                return false
-            }
+            MSG_BYE,
+            MSG_SLIDESHOW,
             MSG_MOBILEWIZARD -> {
-                return false
+                return true
             }
             MSG_HYPERLINK -> {
                 _hyperlink.trySend(messageAndParameter[1])
