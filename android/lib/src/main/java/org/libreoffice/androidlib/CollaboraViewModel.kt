@@ -387,7 +387,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
             MSG_UNO -> {
                 when (messageAndParameter[1].uppercase()) {
-                    MSG_PARAM_UNO_PASTE,
+                    MSG_PARAM_UNO_CUT,
                     MSG_PARAM_UNO_COPY -> {
                         return false
                     }
@@ -470,6 +470,12 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
          * и отвечает за копирование значений. Добавлен в форке
          */
         const val MSG_PARAM_UNO_COPY = ".UNO:COPY"
+
+        /**
+         * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
+         * и отвечает за вырезание значений. Добавлен в форке
+         */
+        const val MSG_PARAM_UNO_CUT = ".UNO:CUT"
 
         /**
          * Сообщение для инициации события закрытия документа.
