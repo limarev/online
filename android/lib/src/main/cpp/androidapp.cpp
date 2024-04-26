@@ -207,9 +207,7 @@ Java_org_libreoffice_androidlib_CollaboraViewModel_postMobileMessageNative(JNIEn
 
         if (strcmp(string_value, "HULLO") == 0)
         {
-            // Now we know that the JS has started completely
-            canReceiveMobileMessages = true;
-
+            // Now we know that the JS has started complete
             // Contact the permanently (during app lifetime) listening COOLWSD server
             // "public" socket
             assert(coolwsd_server_socket_fd != -1);
@@ -280,8 +278,6 @@ Java_org_libreoffice_androidlib_CollaboraViewModel_postMobileMessageNative(JNIEn
         }
         else if (strcmp(string_value, "BYE") == 0)
         {
-            canReceiveMobileMessages = false;
-
             LOG_DBG("Document window terminating on JavaScript side. Closing our end of the socket.");
 
             closeDocument();
