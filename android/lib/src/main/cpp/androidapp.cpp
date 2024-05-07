@@ -186,9 +186,9 @@ void closeDocument()
     LOG_DBG("Waiting for Lokit to finish...");
     std::unique_lock<std::mutex> lokitLock(COOLWSD::lokit_main_mutex);
     LOG_DBG("Lokit has finished.");
-    LOG_DBG("Waiting for COOLWSD to finish...");
-    std::unique_lock<std::mutex> coolwsdLock(coolwsdRunningMutex);
-    LOG_DBG("COOLWSD has finished.");
+//    LOG_DBG("Waiting for COOLWSD to finish...");
+//    std::unique_lock<std::mutex> coolwsdLock(coolwsdRunningMutex);
+//    LOG_DBG("COOLWSD has finished.");
 }
 
 /// Handle a message from JavaScript.
