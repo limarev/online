@@ -102,7 +102,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         Log.i(TAG, "postMobileMessage(): Message & Parameter: $messageAndParameter")
         if (messageAndParameter[0] in setOf("uno", "textinput", "removetextcontext") &&
             messageAndParameter[1] !in "uno:ChangeTheme" && // Исключаем применение темы при открытии дока
-            messageAndParameter[1] !in "uno:ExecuteSearch") // Исключаем команду поиска)
+            messageAndParameter[1] !in "uno:ExecuteSearch") // Исключаем команду поиска
             isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
@@ -385,7 +385,9 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      */
     protected open fun beforeMessageFromWebView(messageAndParameter: List<String>): Boolean {
         when (messageAndParameter[0].uppercase(Locale.getDefault())) {
-            MSG_BYE -> {
+            MSG_BYE,
+            MSG_SLIDESHOW,
+            MSG_MOBILEWIZARD -> {
                 return false
             }
             MSG_HYPERLINK -> {
