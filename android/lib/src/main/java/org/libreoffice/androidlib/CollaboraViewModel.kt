@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.content.res.AssetManager
 import android.os.Build
 import android.webkit.JavascriptInterface
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
@@ -95,6 +96,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     @JavascriptInterface
     override open fun postMobileMessage(message: String) {
         val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
+        Log.i(TAG, "postMobileMessage(): Message & Paremeter: $messageAndParameter")
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
         }
@@ -134,6 +136,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param message Сообщение с данными.
      */
     open fun callFakeWebsocketOnMessage(message: String) {
+        Log.i(TAG, "Forwarding to the WebView: $message")
         // Uri метода с JSON-параметром для выполнения в JavaScript.
         val javaScriptMethodUri = "javascript:window.TheFakeWebSocket.onmessage({'data':$message});"
         _fakeWebSocketOnMessageCalled.trySend(javaScriptMethodUri)
@@ -559,5 +562,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
          * Функционал у нас запрещен.
          */
         const val MSG_UNO = "UNO"
+
+        const val TAG = "CollaboraViewModel"
     }
 }
