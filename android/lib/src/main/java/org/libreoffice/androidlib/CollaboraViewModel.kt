@@ -93,10 +93,16 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
 
     private var _userName : String = ""
 
+    // Пытаемся выяснить модифицировался ли документ по действиям пользователя
+    var isDocModified = false
+
     @JavascriptInterface
     override open fun postMobileMessage(message: String) {
         val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
-        Log.i(TAG, "postMobileMessage(): Message & Paremeter: $messageAndParameter")
+        Log.i(TAG, "postMobileMessage(): Message & Parameter: $messageAndParameter")
+        if (messageAndParameter[0] in setOf("uno", "textinput", "removetextcontext") &&
+            !messageAndParameter[1] !in "uno:ExecuteSearch") // Исключаем команду поиска
+            isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
         }
@@ -136,7 +142,6 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param message Сообщение с данными.
      */
     open fun callFakeWebsocketOnMessage(message: String) {
-        Log.i(TAG, "Forwarding to the WebView: $message")
         // Uri метода с JSON-параметром для выполнения в JavaScript.
         val javaScriptMethodUri = "javascript:window.TheFakeWebSocket.onmessage({'data':$message});"
         _fakeWebSocketOnMessageCalled.trySend(javaScriptMethodUri)
@@ -379,23 +384,22 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      */
     protected open fun beforeMessageFromWebView(messageAndParameter: List<String>): Boolean {
         when (messageAndParameter[0].uppercase(Locale.getDefault())) {
-            MSG_BYE,
-            MSG_SLIDESHOW,
-            MSG_MOBILEWIZARD -> {
+            MSG_BYE -> {
                 return false
             }
             MSG_HYPERLINK -> {
                 _hyperlink.trySend(messageAndParameter[1])
                 return false
             }
-            MSG_UNO -> {
-                when (messageAndParameter[1].uppercase()) {
-                    MSG_PARAM_UNO_CUT,
-                    MSG_PARAM_UNO_COPY -> {
-                        return false
-                    }
-                }
-            }
+            // TODO: Протестировать возможность скопировать / вырезать текст и вставить в другое приложение
+//            MSG_UNO -> {
+//                when (messageAndParameter[1].uppercase()) {
+//                    MSG_PARAM_UNO_CUT,
+//                    MSG_PARAM_UNO_COPY -> {
+//                        return false
+//                    }
+//                }
+//            }
             MSG_LOADWITHPASSWORD -> {
                 startDeterminateFileLoading()
                 return true
