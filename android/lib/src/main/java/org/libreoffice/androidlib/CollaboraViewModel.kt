@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.AssetManager
 import android.os.Build
+import android.content.ClipboardManager
 import android.webkit.JavascriptInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -33,7 +34,9 @@ import java.io.File
 import android.util.Log
 import android.content.ClipData
 import android.net.Uri
-
+import android.util.Base64
+import android.util.JsonReader
+import android.util.JsonWriter
 /**
  * Вью модель для фрагмента [DocumentViewerFragment].
  *
@@ -468,7 +471,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     "set text to clipoard with: text '$text' and html '$html'"
                 )
                 clipData = ClipData.newHtmlText(ClipDescription.MIMETYPE_TEXT_HTML, text, html)
-                clipboardManager.setPrimaryClip(clipData)
+                clipboardManager.setPrimaryClip(clipData!!)
             }
         }
     }
@@ -480,14 +483,14 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     private fun performPaste(): Boolean {
         clipData = clipboardManager.getPrimaryClip()
         if (clipData == null) return false
-        val clipDesc: ClipDescription = clipData.getDescription() ?: return false
+        val clipDesc: ClipDescription = clipData?.getDescription() ?: return false
         for (i in 0 until clipDesc.getMimeTypeCount()) {
             Log.d(
                 "DebugVC50X86RegisterEnums",
                 "Pasting mime " + i + ": " + clipDesc.getMimeType(i)
             )
             if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_HTML)) {
-                val html: String = clipData.getItemAt(i).getHtmlText()
+                val html: String = clipData!!.getItemAt(i).getHtmlText()
                 // Check if the clipboard content was made with the app
                 return if (html.contains(CLIPBOARD_COOL_SIGNATURE)) {
                     // Check if the clipboard content is from the same app instance
@@ -525,7 +528,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     false
                 }
             } else if (clipDesc.getMimeType(i).startsWith("image/")) {
-                val item: ClipData.Item = clipData.getItemAt(i)
+                val item: ClipData.Item = clipData!!.getItemAt(i)
                 val uri: Uri = item.getUri()
                 try {
                     val imageStream: java.io.InputStream = applicationContext.getContentResolver().openInputStream(uri)!!
@@ -550,7 +553,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                 "Plain text paste attempt " + i + ": " + clipDesc.getMimeType(i)
             )
             if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
-                val clipItem: ClipData.Item = clipData.getItemAt(i)
+                val clipItem: ClipData.Item = clipData!!.getItemAt(i)
                 val text: String = clipItem.getText().toString()
                 val textByteArray: ByteArray = text.toByteArray(Charset.forName("UTF-8"))
                 paste("text/plain;charset=utf-8", textByteArray)
@@ -706,4 +709,71 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
          */
         const val MSG_UNO = "UNO"
     }
+}
+
+class LokClipboardData : java.io.Serializable {
+    var clipboardEntries: java.util.ArrayList<LokClipboardEntry> =
+        java.util.ArrayList<LokClipboardEntry>()
+    val text: String?
+        get() {
+            for (aEntry in clipboardEntries) {
+                if (aEntry.mime.startsWith("text/plain")) { // text/plain;charset=utf-8
+                    return String(aEntry.data, java.nio.charset.StandardCharsets.UTF_8)
+                }
+            }
+            return null
+        }
+    val html: String?
+        get() {
+            for (aEntry in clipboardEntries) {
+                if (aEntry.mime.startsWith("text/html")) {
+                    return String(aEntry.data, java.nio.charset.StandardCharsets.UTF_8)
+                }
+            }
+            return null
+        }
+
+    fun writeToFile(file: File): Boolean {
+        try {
+            val fileStream = FileOutputStream(file.getAbsoluteFile())
+            val oos = ObjectOutputStream(fileStream)
+            oos.writeObject(this)
+            oos.close()
+            fileStream.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+            return false
+        }
+        return true
+    }
+
+    val best: LokClipboardEntry?
+        get() = if (!clipboardEntries.isEmpty()) {
+            clipboardEntries.get(0)
+        } else null
+
+    companion object {
+        fun createFromFile(file: File): LokClipboardData? {
+            return try {
+                val fileStream = FileInputStream(file.getAbsoluteFile())
+                val ois = ObjectInputStream(fileStream)
+                val data = ois.readObject() as LokClipboardData
+                ois.close()
+                fileStream.close()
+                data
+            } catch (e: IOException) {
+                e.printStackTrace()
+                null
+            } catch (e: java.lang.ClassNotFoundException) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
+}
+
+
+class LokClipboardEntry : java.io.Serializable {
+    var mime: String? = null
+    var data: ByteArray
 }
