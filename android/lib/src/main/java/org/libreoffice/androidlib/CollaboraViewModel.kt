@@ -1,6 +1,7 @@
 package org.libreoffice.androidlib
 
 import android.annotation.SuppressLint
+import android.content.ClipDescription
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.AssetManager
@@ -26,6 +27,26 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
+import sun.jvm.hotspot.debugger.win32.coff."DebugVC50X86RegisterEnums"
+
+import java.io.File
+import java.nio.charset.Charset
+
+import sun.jvm.hotspot.debugger.win32.coff."DebugVC50X86RegisterEnums"
+
+import java.io.ByteArrayOutputStream
+
+import java.io.InputStream
+
+import com.sun.jndi.toolkit.url.Uri
+
+import java.io.File
+
+
+
+
+
+
 
 /**
  * Вью модель для фрагмента [DocumentViewerFragment].
@@ -37,6 +58,9 @@ import java.util.Locale
 @SuppressLint("StaticFieldLeak")
 open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
 
+    private val clipboardManager : ClipboardManager by lazy {
+        applicationContext.getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+    }
     init {
         System.loadLibrary("androidapp")
     }
@@ -64,6 +88,19 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         fileUri: String,
         format: String,
         options: String
+    )
+
+    external fun getClipboardContent(
+        aData : LokClipboardData
+    ) : Boolean
+
+    external fun setClipboardContent(
+        aData : LokClipboardData
+    )
+
+    external fun paste(
+        mimeType : String,
+        data : ByteArray
     )
 
     /**
@@ -385,14 +422,14 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                 _hyperlink.trySend(messageAndParameter[1])
                 return false
             }
-            MSG_UNO -> {
-                when (messageAndParameter[1].uppercase()) {
-                    MSG_PARAM_UNO_CUT,
-                    MSG_PARAM_UNO_COPY -> {
-                        return false
-                    }
-                }
-            }
+//            MSG_UNO -> {
+//                when (messageAndParameter[1].uppercase()) {
+//                    MSG_PARAM_UNO_CUT,
+//                    MSG_PARAM_UNO_COPY -> {
+//                        return false
+//                    }
+//                }
+//            }
             MSG_LOADWITHPASSWORD -> {
                 startDeterminateFileLoading()
                 return true
@@ -411,6 +448,125 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         }
 
         return true
+    }
+
+    /// Needs to be executed after the .uno:Copy / Paste has executed
+    private val CLIPBOARD_FILE_PATH = "LibreofficeClipboardFile.data"
+
+    fun populateClipboard() {
+        val clipboardFile = File(applicationContext.cacheDir, CLIPBOARD_FILE_PATH)
+        if (clipboardFile.exists()) clipboardFile.delete()
+        val clipboardData = LokClipboardData()
+        if (!getClipboardContent(clipboardData)) Log.e(
+            "DebugVC50X86RegisterEnums",
+            "no clipboard to copy"
+        ) else {
+            clipboardData.writeToFile(clipboardFile)
+            val text: String = clipboardData.getText()
+            var html: String = clipboardData.getHtml()
+            if (html != null) {
+                var idx: Int = html.indexOf("<meta name=\"generator\" content=\"")
+                if (idx < 0) idx =
+                    html.indexOf("<meta http-equiv=\"content-type\" content=\"text/html;")
+                if (idx >= 0) { // inject our magic
+                    val newHtml: java.lang.StringBuffer = java.lang.StringBuffer(html)
+                    newHtml.insert(
+                        idx,
+                        "<meta name=\"origin\" content=\"" + getClipboardMagic() + "\"/>\n"
+                    )
+                    html = newHtml.toString()
+                }
+                if (text == null || text.length == 0) Log.i(
+                    "DebugVC50X86RegisterEnums",
+                    "set text to clipoard with: text '$text' and html '$html'"
+                )
+                clipData = ClipData.newHtmlText(ClipDescription.MIMETYPE_TEXT_HTML, text, html)
+                clipboardManager.setPrimaryClip(clipData)
+            }
+        }
+    }
+
+    /// Do the paste, and return true if we should short-circuit the paste locally (ie. let the core handle that)
+    private fun performPaste(): Boolean {
+        clipData = clipboardManager.getPrimaryClip()
+        if (clipData == null) return false
+        val clipDesc: ClipDescription = clipData.getDescription() ?: return false
+        for (i in 0 until clipDesc.getMimeTypeCount()) {
+            Log.d(
+                "DebugVC50X86RegisterEnums",
+                "Pasting mime " + i + ": " + clipDesc.getMimeType(i)
+            )
+            if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_HTML)) {
+                val html: String = clipData.getItemAt(i).getHtmlText()
+                // Check if the clipboard content was made with the app
+                return if (html.contains(CLIPBOARD_COOL_SIGNATURE)) {
+                    // Check if the clipboard content is from the same app instance
+                    if (html.contains(getClipboardMagic())) {
+                        Log.i(
+                            "DebugVC50X86RegisterEnums",
+                            "clipboard comes from us - same instance: short circuit it $html"
+                        )
+                        true
+                    } else {
+                        Log.i(
+                            "DebugVC50X86RegisterEnums",
+                            "clipboard comes from us - other instance: paste from clipboard file"
+                        )
+                        val clipboardFile =
+                            File(applicationContext.getCacheDir(), CLIPBOARD_FILE_PATH)
+                        var clipboardData: LokClipboardData? = null
+                        if (clipboardFile.exists()) clipboardData =
+                            LokClipboardData.createFromFile(clipboardFile)
+                        if (clipboardData != null) {
+                            setClipboardContent(clipboardData)
+                            return true
+                        } else {
+                            // Couldn't get data from the clipboard file, but we can still paste html
+                            val htmlByteArray: ByteArray =
+                                html.toByteArray(Charset.forName("UTF-8"))
+                            paste("text/html", htmlByteArray)
+                        }
+                        false
+                    }
+                } else {
+                    Log.i("DebugVC50X86RegisterEnums", "foreign html '$html'")
+                    val htmlByteArray: ByteArray = html.toByteArray(Charset.forName("UTF-8"))
+                    paste("text/html", htmlByteArray)
+                    false
+                }
+            } else if (clipDesc.getMimeType(i).startsWith("image/")) {
+                val item: ClipData.Item = clipData.getItemAt(i)
+                val uri: Uri = item.getUri()
+                try {
+                    val imageStream: java.io.InputStream = applicationContext.getContentResolver().openInputStream(uri)
+                    val buffer = ByteArrayOutputStream()
+                    var nRead: Int
+                    val data = ByteArray(16384)
+                    while (imageStream.read(data, 0, data.size).also { nRead = it } != -1) {
+                        buffer.write(data, 0, nRead)
+                    }
+                    paste(clipDesc.getMimeType(i), buffer.toByteArray())
+                    return false
+                } catch (e: java.lang.Exception) {
+                    Log.d("DebugVC50X86RegisterEnums", "Failed to paste image: " + e.message)
+                }
+            }
+        }
+
+        // try the plaintext as the last resort
+        for (i in 0 until clipDesc.getMimeTypeCount()) {
+            Log.d(
+                "DebugVC50X86RegisterEnums",
+                "Plain text paste attempt " + i + ": " + clipDesc.getMimeType(i)
+            )
+            if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
+                val clipItem: ClipData.Item = clipData.getItemAt(i)
+                val text: String = clipItem.getText().toString()
+                val textByteArray: ByteArray = text.toByteArray(Charset.forName("UTF-8"))
+                paste("text/plain;charset=utf-8", textByteArray)
+            }
+        }
+        return false
     }
 
     protected companion object {
