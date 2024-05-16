@@ -23,22 +23,16 @@ import org.libreoffice.androidlib.BuildConfig
 import org.libreoffice.androidlib.R
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
-import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
-import java.io.File
 import java.nio.charset.Charset
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import com.sun.jndi.toolkit.url.Uri
 import java.io.File
-
-
-
-
-
-
+import android.util.Log
+import android.content.ClipData
+import android.net.Uri
 
 /**
  * Вью модель для фрагмента [DocumentViewerFragment].
@@ -51,7 +45,7 @@ import java.io.File
 open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
 
     private val clipboardManager : ClipboardManager by lazy {
-        applicationContext.getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     }
     init {
         System.loadLibrary("androidapp")
@@ -120,6 +114,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     val fakeWebSocketOnMessageCalled: Flow<String> = _fakeWebSocketOnMessageCalled.receiveAsFlow()
 
     private var _userName : String = ""
+    private var clipData: ClipData? = null
 
     @JavascriptInterface
     override open fun postMobileMessage(message: String) {
@@ -477,6 +472,9 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
         }
     }
+    private fun getClipboardMagic(): String {
+        return "cool-clip-magic-4a22437e49a8-" + java.lang.Long.toString(12312412412)
+    }
 
     /// Do the paste, and return true if we should short-circuit the paste locally (ie. let the core handle that)
     private fun performPaste(): Boolean {
@@ -530,7 +528,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                 val item: ClipData.Item = clipData.getItemAt(i)
                 val uri: Uri = item.getUri()
                 try {
-                    val imageStream: java.io.InputStream = applicationContext.getContentResolver().openInputStream(uri)
+                    val imageStream: java.io.InputStream = applicationContext.getContentResolver().openInputStream(uri)!!
                     val buffer = ByteArrayOutputStream()
                     var nRead: Int
                     val data = ByteArray(16384)
