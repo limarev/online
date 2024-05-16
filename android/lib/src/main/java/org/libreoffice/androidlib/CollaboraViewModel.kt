@@ -27,19 +27,11 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
-import sun.jvm.hotspot.debugger.win32.coff."DebugVC50X86RegisterEnums"
-
 import java.io.File
 import java.nio.charset.Charset
-
-import sun.jvm.hotspot.debugger.win32.coff."DebugVC50X86RegisterEnums"
-
 import java.io.ByteArrayOutputStream
-
 import java.io.InputStream
-
 import com.sun.jndi.toolkit.url.Uri
-
 import java.io.File
 
 
