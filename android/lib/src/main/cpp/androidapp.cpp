@@ -486,7 +486,7 @@ JNIEXPORT jboolean JNICALL
     jclass jclazz = env->FindClass("java/util/ArrayList");
     jmethodID methodId_ArrayList_Add = env->GetMethodID(jclazz, "add", "(Ljava/lang/Object;)Z");
 
-    jclass class_LokClipboardEntry = env->FindClass("org/libreoffice/androidlib/lok/LokClipboardEntry");
+    jclass class_LokClipboardEntry = env->FindClass("org/libreoffice/androidlib/LokClipboardEntry");
     jmethodID methodId_LokClipboardEntry_Constructor = env->GetMethodID(class_LokClipboardEntry, "<init>", "()V");
     jfieldID fieldId_LokClipboardEntry_Mime = env->GetFieldID(class_LokClipboardEntry , "mime", "Ljava/lang/String;");
     jfieldID fieldId_LokClipboardEntry_Data = env->GetFieldID(class_LokClipboardEntry, "data", "[B");
@@ -577,7 +577,7 @@ Java_org_libreoffice_androidlib_CollaboraViewModel_setClipboardContent(JNIEnv *e
     jclass class_ArrayList= env->FindClass("java/util/ArrayList");
     jmethodID methodId_ArrayList_ToArray = env->GetMethodID(class_ArrayList, "toArray", "()[Ljava/lang/Object;");
 
-    jclass class_LokClipboardEntry = env->FindClass("org/libreoffice/androidlib/lok/LokClipboardEntry");
+    jclass class_LokClipboardEntry = env->FindClass("org/libreoffice/androidlib/LokClipboardEntry");
     jfieldID fieldId_LokClipboardEntry_Mime = env->GetFieldID(class_LokClipboardEntry , "mime", "Ljava/lang/String;");
     jfieldID fieldId_LokClipboardEntry_Data = env->GetFieldID(class_LokClipboardEntry, "data", "[B");
 
