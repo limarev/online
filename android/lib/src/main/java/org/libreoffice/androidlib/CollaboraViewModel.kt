@@ -455,8 +455,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             "no clipboard to copy"
         ) else {
             clipboardData.writeToFile(clipboardFile)
-            val text: String = clipboardData.text
-            var html: String = clipboardData.html
+            val text: String? = clipboardData.text
+            var html: String? = clipboardData.html
             if (html != null) {
                 var idx: Int = html!!.indexOf("<meta name=\"generator\" content=\"")
                 if (idx < 0) idx =
@@ -720,7 +720,7 @@ class LokClipboardData : java.io.Serializable {
     val text: String?
         get() {
             for (aEntry in clipboardEntries) {
-                if (aEntry.mime.startsWith("text/plain")) { // text/plain;charset=utf-8
+                if (aEntry.mime?.startsWith("text/plain") == true) { // text/plain;charset=utf-8
                     return String(aEntry.data, java.nio.charset.StandardCharsets.UTF_8)
                 }
             }
@@ -729,7 +729,7 @@ class LokClipboardData : java.io.Serializable {
     val html: String?
         get() {
             for (aEntry in clipboardEntries) {
-                if (aEntry.mime.startsWith("text/html")) {
+                if (aEntry.mime?.startsWith("text/html") == true) {
                     return String(aEntry.data, java.nio.charset.StandardCharsets.UTF_8)
                 }
             }
