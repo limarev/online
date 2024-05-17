@@ -131,7 +131,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         }
     }
 
-    private open fun afterMessageFromWebView(messageAndParameterArray: Array<String>) {
+    open fun afterMessageFromWebView(messageAndParameterArray: List<String>) {
         when (messageAndParameterArray[0]) {
             MSG_UNO -> when (messageAndParameterArray[1]) {
                 MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT -> populateClipboard()
