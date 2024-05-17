@@ -101,8 +101,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
         Log.i(TAG, "postMobileMessage(): Message & Parameter: $messageAndParameter")
         if (messageAndParameter[0] in setOf("uno", "textinput", "removetextcontext") &&
-            messageAndParameter[1] !in "uno:ChangeTheme" && // Исключаем применение темы при открытии дока
-            messageAndParameter[1] !in "uno:ExecuteSearch") // Исключаем команду поиска
+            "uno:ChangeTheme" !in messageAndParameter[1] && // Исключаем применение темы при открытии дока
+            "uno:ExecuteSearch" !in messageAndParameter[1]) // Исключаем команду поиска
             isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
