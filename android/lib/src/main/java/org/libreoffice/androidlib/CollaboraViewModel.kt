@@ -25,6 +25,7 @@ import org.libreoffice.androidlib.R
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileOutputStream
+import java.io.FileInputStream
 import java.io.IOException
 import java.util.Locale
 import java.nio.charset.Charset
@@ -37,6 +38,8 @@ import android.net.Uri
 import android.util.Base64
 import android.util.JsonReader
 import android.util.JsonWriter
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
 /**
  * Вью модель для фрагмента [DocumentViewerFragment].
  *
@@ -452,25 +455,25 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             "no clipboard to copy"
         ) else {
             clipboardData.writeToFile(clipboardFile)
-            val text: String = clipboardData.getText()
-            var html: String = clipboardData.getHtml()
+            val text: String = clipboardData.text
+            var html: String = clipboardData.html
             if (html != null) {
-                var idx: Int = html.indexOf("<meta name=\"generator\" content=\"")
+                var idx: Int = html!!.indexOf("<meta name=\"generator\" content=\"")
                 if (idx < 0) idx =
-                    html.indexOf("<meta http-equiv=\"content-type\" content=\"text/html;")
+                    html!!.indexOf("<meta http-equiv=\"content-type\" content=\"text/html;")
                 if (idx >= 0) { // inject our magic
-                    val newHtml: java.lang.StringBuffer = java.lang.StringBuffer(html)
+                    val newHtml: java.lang.StringBuffer = java.lang.StringBuffer(html!!)
                     newHtml.insert(
                         idx,
                         "<meta name=\"origin\" content=\"" + getClipboardMagic() + "\"/>\n"
                     )
                     html = newHtml.toString()
                 }
-                if (text == null || text.length == 0) Log.i(
+                if (text == null || text?.length == 0) Log.i(
                     "DebugVC50X86RegisterEnums",
                     "set text to clipoard with: text '$text' and html '$html'"
                 )
-                clipData = ClipData.newHtmlText(ClipDescription.MIMETYPE_TEXT_HTML, text, html)
+                clipData = ClipData.newHtmlText(ClipDescription.MIMETYPE_TEXT_HTML, text!!, html)
                 clipboardManager.setPrimaryClip(clipData!!)
             }
         }
@@ -492,7 +495,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_HTML)) {
                 val html: String = clipData!!.getItemAt(i).getHtmlText()
                 // Check if the clipboard content was made with the app
-                return if (html.contains(CLIPBOARD_COOL_SIGNATURE)) {
+                return if (html.contains("cool-clip-magic-4a22437e49a8-")) {
                     // Check if the clipboard content is from the same app instance
                     if (html.contains(getClipboardMagic())) {
                         Log.i(
@@ -775,5 +778,5 @@ class LokClipboardData : java.io.Serializable {
 
 class LokClipboardEntry : java.io.Serializable {
     var mime: String? = null
-    var data: ByteArray
+    var data: ByteArray = byteArrayOf()
 }
