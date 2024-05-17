@@ -127,9 +127,20 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
+            afterMessageFromWebView(messageAndParameter)
         }
     }
 
+    private open fun afterMessageFromWebView(messageAndParameterArray: Array<String>) {
+        when (messageAndParameterArray[0]) {
+            MSG_UNO -> when (messageAndParameterArray[1]) {
+                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT -> populateClipboard()
+                else -> {}
+            }
+
+            else -> {}
+        }
+    }
     @JavascriptInterface
     override open fun isChromeOS(): Boolean {
         return false
@@ -415,14 +426,19 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                 _hyperlink.trySend(messageAndParameter[1])
                 return false
             }
-//            MSG_UNO -> {
-//                when (messageAndParameter[1].uppercase()) {
-//                    MSG_PARAM_UNO_CUT,
-//                    MSG_PARAM_UNO_COPY -> {
-//                        return false
-//                    }
-//                }
-//            }
+            MSG_UNO -> {
+                when (messageAndParameter[1].uppercase()) {
+                    MSG_PARAM_UNO_CUT -> {
+
+                    }
+                    MSG_PARAM_UNO_COPY -> {
+
+                    }
+                    MSG_PARAM_UNO_PASTE -> {
+                        performPaste()
+                    }
+                }
+            }
             MSG_LOADWITHPASSWORD -> {
                 startDeterminateFileLoading()
                 return true
@@ -482,7 +498,6 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         return "cool-clip-magic-4a22437e49a8-" + java.lang.Long.toString(12312412412)
     }
 
-    /// Do the paste, and return true if we should short-circuit the paste locally (ie. let the core handle that)
     private fun performPaste(): Boolean {
         clipData = clipboardManager.getPrimaryClip()
         if (clipData == null) return false
