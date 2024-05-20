@@ -124,6 +124,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
 
     // Пытаемся выяснить модифицировался ли документ по действиям пользователя
     var isDocModified = false
+    // работает ли коллабора с внешним буфером
+    var isExternalClipboard = false
 
     @JavascriptInterface
     override open fun postMobileMessage(message: String) {
@@ -135,7 +137,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
-            afterMessageFromWebView(messageAndParameter)
+            if (isExternalClipboard)
+                afterMessageFromWebView(messageAndParameter)
         }
     }
 
@@ -143,7 +146,6 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         when (messageAndParameterArray[0].uppercase(Locale.getDefault())) {
             MSG_UNO -> when (messageAndParameterArray[1].uppercase()) {
                 MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, MSG_PARAM_UNO_PASTE -> {
-                    if (copyFromCollabora.not())
                         populateClipboard()
                 }
                 else -> {}
@@ -438,15 +440,10 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
             MSG_UNO -> {
                 when (messageAndParameter[1].uppercase()) {
-                    // если было копирование из коллаборы, то вставляем из неё и обнуляем флаг
-                    MSG_PARAM_UNO_PASTE -> return if (copyFromCollabora) {
-                        copyFromCollabora = false
+                    MSG_PARAM_UNO_PASTE -> return if (isExternalClipboard)
+                        performPaste()
+                    else
                         true
-                    } else performPaste()
-                    // если копируем из коллаборы переключаем флаг
-                    MSG_PARAM_UNO_COPY -> {
-                        copyFromCollabora = true
-                    }
                 }
             }
             MSG_LOADWITHPASSWORD -> {
@@ -471,8 +468,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
 
     /// Needs to be executed after the .uno:Copy / Paste has executed
     private val CLIPBOARD_FILE_PATH = "LibreofficeClipboardFile.data"
-    // флаг, было ли копирование в коллаборе
-    private var copyFromCollabora = false
+
     fun populateClipboard() {
         val clipboardFile = File(applicationContext.cacheDir, CLIPBOARD_FILE_PATH)
         if (clipboardFile.exists()) clipboardFile.delete()
