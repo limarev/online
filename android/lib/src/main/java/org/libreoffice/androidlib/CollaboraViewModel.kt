@@ -142,7 +142,10 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     open fun afterMessageFromWebView(messageAndParameterArray: List<String>) {
         when (messageAndParameterArray[0].uppercase(Locale.getDefault())) {
             MSG_UNO -> when (messageAndParameterArray[1].uppercase()) {
-                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, MSG_PARAM_UNO_PASTE -> populateClipboard()
+                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, MSG_PARAM_UNO_PASTE -> {
+                    if (copyFromCollabora.not())
+                        populateClipboard()
+                }
                 else -> {}
             }
             else -> {}
@@ -435,7 +438,15 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
             MSG_UNO -> {
                 when (messageAndParameter[1].uppercase()) {
-                    MSG_PARAM_UNO_PASTE -> return performPaste()
+                    // если было копирование из коллаборы, то вставляем из неё и обнуляем флаг
+                    MSG_PARAM_UNO_PASTE -> return if (copyFromCollabora) {
+                        copyFromCollabora = false
+                        true
+                    } else performPaste()
+                    // если копируем из коллаборы переключаем флаг
+                    MSG_PARAM_UNO_COPY -> {
+                        copyFromCollabora = true
+                    }
                 }
             }
             MSG_LOADWITHPASSWORD -> {
@@ -460,7 +471,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
 
     /// Needs to be executed after the .uno:Copy / Paste has executed
     private val CLIPBOARD_FILE_PATH = "LibreofficeClipboardFile.data"
-
+    // флаг, было ли копирование в коллаборе
+    private var copyFromCollabora = false
     fun populateClipboard() {
         val clipboardFile = File(applicationContext.cacheDir, CLIPBOARD_FILE_PATH)
         if (clipboardFile.exists()) clipboardFile.delete()
