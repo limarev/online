@@ -447,6 +447,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                         performPaste()
                     }
                 }
+                return true
             }
             MSG_LOADWITHPASSWORD -> {
                 startDeterminateFileLoading()
