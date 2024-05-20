@@ -8,6 +8,7 @@ import android.content.res.AssetManager
 import android.os.Build
 import android.content.ClipboardManager
 import android.webkit.JavascriptInterface
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
@@ -122,9 +123,17 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     private var _userName : String = ""
     private var clipData: ClipData? = null
 
+    // Пытаемся выяснить модифицировался ли документ по действиям пользователя
+    var isDocModified = false
+
     @JavascriptInterface
     override open fun postMobileMessage(message: String) {
         val messageAndParameter = message.split(" ", ignoreCase = true, limit = 2)
+        Log.i(TAG, "postMobileMessage(): Message & Parameter: $messageAndParameter")
+        if (messageAndParameter[0] in setOf("uno", "textinput", "removetextcontext") &&
+            "uno:ChangeTheme" !in messageAndParameter[1] && // Исключаем применение темы при открытии дока
+            "uno:ExecuteSearch" !in messageAndParameter[1]) // Исключаем команду поиска
+            isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
             afterMessageFromWebView(messageAndParameter)
@@ -726,5 +735,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
          * Функционал у нас запрещен.
          */
         const val MSG_UNO = "UNO"
+
+        const val TAG = "CollaboraViewModel"
     }
 }
