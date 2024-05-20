@@ -37,38 +37,6 @@ static JavaVM* javaVM = nullptr;
 static bool lokInitialized = false;
 static std::mutex coolwsdRunningMutex;
 
-/*
- * Флаг, который разрешает или запрещает обрабатывать сообщения,
- * которые адресованы COOLWSD. Добавлен в связи с багом.
- *
- * Описание бага:
- * - открываем документ;
- * - увеличиваем и быстро скроллим до серой части экрана;
- * - быстро нажимаем на устройстве кнопку «назад»;
- * - снова открываем документ;
- * - наблюдаем диалоговое окно с прогресс баром, которое никогда не закроется, а документ никогда не загрузится.
- *
- * Я не стал продолжать разбираться в том, что происходит глубже в коде (может позже),
- * но одно действие точно не должно выполняться - это передача сообщений в COOLWSD
- * после отправки сообщения BYE. Потому что при отправке сообщения BYE происходит
- * деинициализация демона веб-сервиса и корректное закрытие потоков с ожиданием
- * их завершения на нужном потоке.
- *
- * Сообщения, отправленные после BYE что-то ломают и вновь созданный поток с
- * именем websrv_poll перестает выполнять свои обязанности, а именно:
- * вызывать связанный с ним метод и порождать поток docbroker_n (где n -
- * это порядковый номер потока брокера в текущей сессии, которая запускается в
- * момент открытия документа), который работает с классом DocumentBroker, который
- * собственно и отвечает за загрузку документа. При этом COOLWSD остается
- * проинициализированным и выполняет бесконечный цикл с какой-то проблемой внутри
- * цепочки вызовов методов.
- *
- * Собственно, так как, этот флаг используется и в дальнейшем должен использоваться
- * только в одном потоке, принято решение сделать его статичным и не атомарным. На
- * мой взгляд - это самый простой и действенный вариант, который нас должен устроить.
- */
-static bool canReceiveMobileMessages = false;
-
 // Remember the reference to the DocumentViewerViewModel
 jclass g_collaboraViewModelClzClz = nullptr;
 jobject g_collaboraViewModelClzObj = nullptr;
@@ -86,11 +54,11 @@ JNI_OnLoad(JavaVM* vm, void*) {
 
     // Uncomment the following to see the logs from the core too
     //setenv("SAL_LOG", "+WARN+INFO", 0);
-//#if ENABLE_DEBUG
+#if ENABLE_DEBUG
     Log::initialize("Mobile", "debug", false, false, {});
-//#else
-//    Log::initialize("Mobile", "information", false, false, {});
-//#endif
+#else
+    Log::initialize("Mobile", "information", false, false, {});
+#endif
     return JNI_VERSION_1_6;
 }
 
@@ -218,9 +186,9 @@ void closeDocument()
     LOG_DBG("Waiting for Lokit to finish...");
     std::unique_lock<std::mutex> lokitLock(COOLWSD::lokit_main_mutex);
     LOG_DBG("Lokit has finished.");
-    LOG_DBG("Waiting for COOLWSD to finish...");
-    std::unique_lock<std::mutex> coolwsdLock(coolwsdRunningMutex);
-    LOG_DBG("COOLWSD has finished.");
+//    LOG_DBG("Waiting for COOLWSD to finish...");
+//    std::unique_lock<std::mutex> coolwsdLock(coolwsdRunningMutex);
+//    LOG_DBG("COOLWSD has finished.");
 }
 
 /// Handle a message from JavaScript.
@@ -239,9 +207,7 @@ Java_org_libreoffice_androidlib_CollaboraViewModel_postMobileMessageNative(JNIEn
 
         if (strcmp(string_value, "HULLO") == 0)
         {
-            // Now we know that the JS has started completely
-            canReceiveMobileMessages = true;
-
+            // Now we know that the JS has started complete
             // Contact the permanently (during app lifetime) listening COOLWSD server
             // "public" socket
             assert(coolwsd_server_socket_fd != -1);
@@ -312,51 +278,25 @@ Java_org_libreoffice_androidlib_CollaboraViewModel_postMobileMessageNative(JNIEn
         }
         else if (strcmp(string_value, "BYE") == 0)
         {
-            canReceiveMobileMessages = false;
-
             LOG_DBG("Document window terminating on JavaScript side. Closing our end of the socket.");
 
             closeDocument();
         }
         else
         {
-            // С этого момента мы можем принимать сообщения от андроида
-            // и передавать их дальше по пайплайну.
-            if (canReceiveMobileMessages) {
-
-            // Копируем сообщение.
+            // Send the message to COOLWSD
             char *string_copy = strdup(string_value);
 
-            // При интеграции коллаборы есть баг, когда на уровне c++ выбрасывается исключение
-            // из-за неверного значения одного параметра (part) в сообщении с идентификатором tilecombine.
-            // Для того, чтобы его устранить нужно не обрабатывать сообщение с этим неверным параметром.
-            char *invalid_part_found = nullptr;
+            struct pollfd pollfd;
+            pollfd.fd = currentFakeClientFd;
+            pollfd.events = POLLOUT;
+            fakeSocketPoll(&pollfd, 1, -1);
+            fakeSocketWrite(currentFakeClientFd, string_copy, strlen(string_copy));
 
-            const char *tile_combine = "tilecombine";
-            char *tile_combine_found = strstr(string_copy, tile_combine);
-            if (tile_combine_found != nullptr) {
-            const char *invalid_part = "part=-1";
-            invalid_part_found = strstr(string_copy, invalid_part);
-            }
-
-            // Если "part=-1" не был найден, то отправляем сообщение
-            // дальше по пайплайну, иначе ничего не нужно предпринимать.
-            if (invalid_part_found == nullptr) {
-                struct pollfd pollfd {
-                        .fd = currentFakeClientFd,
-                        .events = POLLOUT
-                };
-
-                fakeSocketPoll(&pollfd, 1, -1);
-                fakeSocketWrite(currentFakeClientFd, string_copy, strlen(string_copy));
-            }
-
-                // Освобождаем память, занятую дубликатом сообщения.
-                free(string_copy);
-            }
+            free(string_copy);
         }
-    }
-    else
+        }
+        else
         LOG_DBG("From JS: cool: some object");
 }
 
