@@ -8,7 +8,6 @@ import android.content.res.AssetManager
 import android.os.Build
 import android.content.ClipboardManager
 import android.webkit.JavascriptInterface
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
