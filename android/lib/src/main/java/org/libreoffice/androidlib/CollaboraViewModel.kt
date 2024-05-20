@@ -142,7 +142,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     open fun afterMessageFromWebView(messageAndParameterArray: List<String>) {
         when (messageAndParameterArray[0].uppercase(Locale.getDefault())) {
             MSG_UNO -> when (messageAndParameterArray[1].uppercase()) {
-                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT -> populateClipboard()
+                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, MSG_PARAM_UNO_PASTE -> populateClipboard()
                 else -> {}
             }
             else -> {}
@@ -465,8 +465,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         val clipboardFile = File(applicationContext.cacheDir, CLIPBOARD_FILE_PATH)
         if (clipboardFile.exists()) clipboardFile.delete()
         val clipboardData = LokClipboardData()
-        if (!getClipboardContent(clipboardData)) Log.e(
-            "DebugVC50X86RegisterEnums",
+        if (!getClipboardContent(clipboardData)) Log.i(
+            TAG,
             "no clipboard to copy"
         ) else {
             clipboardData.writeToFile(clipboardFile)
@@ -485,7 +485,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     html = newHtml.toString()
                 }
                 if (text == null || text?.length == 0) Log.i(
-                    "DebugVC50X86RegisterEnums",
+                    TAG,
                     "set text to clipoard with: text '$text' and html '$html'"
                 )
                 clipData = ClipData.newHtmlText(ClipDescription.MIMETYPE_TEXT_HTML, text!!, html)
@@ -493,8 +493,13 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
         }
     }
+    private val CLIPBOARD_COOL_SIGNATURE = "cool-clip-magic-4a22437e49a8-"
+
+    private val openTime : Long by lazy {
+        android.os.SystemClock.uptimeMillis()
+    }
     private fun getClipboardMagic(): String {
-        return "cool-clip-magic-4a22437e49a8-" + java.lang.Long.toString(12312412412)
+        return CLIPBOARD_COOL_SIGNATURE + java.lang.Long.toString(openTime)
     }
 
     private fun performPaste(): Boolean {
@@ -502,24 +507,24 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         if (clipData == null) return false
         val clipDesc: ClipDescription = clipData?.getDescription() ?: return false
         for (i in 0 until clipDesc.getMimeTypeCount()) {
-            Log.d(
-                "DebugVC50X86RegisterEnums",
+            Log.i(
+                TAG,
                 "Pasting mime " + i + ": " + clipDesc.getMimeType(i)
             )
             if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_HTML)) {
                 val html: String = clipData!!.getItemAt(i).getHtmlText()
                 // Check if the clipboard content was made with the app
-                return if (html.contains("cool-clip-magic-4a22437e49a8-")) {
+                return if (html.contains(CLIPBOARD_COOL_SIGNATURE)) {
                     // Check if the clipboard content is from the same app instance
                     if (html.contains(getClipboardMagic())) {
                         Log.i(
-                            "DebugVC50X86RegisterEnums",
+                            TAG,
                             "clipboard comes from us - same instance: short circuit it $html"
                         )
                         true
                     } else {
                         Log.i(
-                            "DebugVC50X86RegisterEnums",
+                            TAG,
                             "clipboard comes from us - other instance: paste from clipboard file"
                         )
                         val clipboardFile =
@@ -539,7 +544,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                         false
                     }
                 } else {
-                    Log.i("DebugVC50X86RegisterEnums", "foreign html '$html'")
+                    Log.i(TAG, "foreign html '$html'")
                     val htmlByteArray: ByteArray = html.toByteArray(Charset.forName("UTF-8"))
                     paste("text/html", htmlByteArray)
                     false
@@ -558,15 +563,15 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     paste(clipDesc.getMimeType(i), buffer.toByteArray())
                     return false
                 } catch (e: java.lang.Exception) {
-                    Log.d("DebugVC50X86RegisterEnums", "Failed to paste image: " + e.message)
+                    Log.i(TAG, "Failed to paste image: " + e.message)
                 }
             }
         }
 
         // try the plaintext as the last resort
         for (i in 0 until clipDesc.getMimeTypeCount()) {
-            Log.d(
-                "DebugVC50X86RegisterEnums",
+            Log.i(
+                TAG,
                 "Plain text paste attempt " + i + ": " + clipDesc.getMimeType(i)
             )
             if (clipDesc.getMimeType(i).equals(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
