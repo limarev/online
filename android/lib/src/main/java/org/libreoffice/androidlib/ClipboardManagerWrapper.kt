@@ -1,4 +1,4 @@
-package ru.tv1.android.tv
+package org.libreoffice.androidlib
 
 import android.content.ClipData
 import android.content.ClipboardManager
