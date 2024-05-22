@@ -50,8 +50,8 @@ import java.io.ObjectOutputStream
 @SuppressLint("StaticFieldLeak")
 open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
 
-    private val clipboardManager : ClipboardManager by lazy {
-        applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    private val clipboardManager : ClipboardManagerWrapper by lazy {
+        ClipboardManagerWrapper(applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
     }
     init {
         System.loadLibrary("androidapp")
@@ -497,7 +497,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     "set text to clipoard with: text '$text' and html '$html'"
                 )
                 clipData = ClipData.newHtmlText(ClipDescription.MIMETYPE_TEXT_HTML, text!!, html)
-                clipboardManager.setPrimaryClip(clipData!!)
+                clipboardManager.setClipData(clipData!!)
             }
         }
     }
@@ -511,7 +511,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     }
 
     private fun performPaste(): Boolean {
-        clipData = clipboardManager.getPrimaryClip()
+        clipData = clipboardManager.getClipData()
         if (clipData == null) return false
         val clipDesc: ClipDescription = clipData?.getDescription() ?: return false
         for (i in 0 until clipDesc.getMimeTypeCount()) {
