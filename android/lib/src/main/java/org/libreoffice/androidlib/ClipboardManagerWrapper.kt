@@ -37,6 +37,6 @@ class ClipboardManagerWrapper(
     }
 
     companion object {
-        private val clipboardExternallMessage = "Копирование запрещено!"
+        private val clipboardExternallMessage = "Копирование данных запрещено"
     }
 }
