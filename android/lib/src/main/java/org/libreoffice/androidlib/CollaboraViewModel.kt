@@ -441,8 +441,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             MSG_UNO -> {
                 when (messageAndParameter[1].uppercase()) {
                     MSG_PARAM_UNO_PASTE -> {
-                        performPaste()
-                        return false
+                        return performPaste()
                     }
                 }
             }
