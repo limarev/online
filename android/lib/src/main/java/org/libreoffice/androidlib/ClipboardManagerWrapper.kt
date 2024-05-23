@@ -21,17 +21,13 @@ class ClipboardManagerWrapper(
     fun getClipData(): ClipData?{
         val clipData = clipboardManager.primaryClip
 
-        if (cash == null) // если кеш пуст возвращаем как есть
-            return clipData
-
         for (i in 0..(clipData?.itemCount ?: 0)){
             val text = clipData?.getItemAt(i)?.text
 
             // если скопирована заглушка и кеш не пуст возвращаем кеш
-            if (text == clipboardExternallMessage && cash != null)
-                return cash!!
+            if (text == clipboardExternallMessage)
+                return cash ?: clipData
         }
-
         return clipData
     }
 

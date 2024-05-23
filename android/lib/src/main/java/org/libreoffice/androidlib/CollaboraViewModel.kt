@@ -137,7 +137,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
-            if (isExternalClipboard)
+//            if (isExternalClipboard)
                 afterMessageFromWebView(messageAndParameter)
         }
     }
@@ -145,7 +145,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     open fun afterMessageFromWebView(messageAndParameterArray: List<String>) {
         when (messageAndParameterArray[0].uppercase(Locale.getDefault())) {
             MSG_UNO -> when (messageAndParameterArray[1].uppercase()) {
-                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, MSG_PARAM_UNO_PASTE -> {
+                MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, /*MSG_PARAM_UNO_PASTE*/ -> {
                         populateClipboard()
                 }
                 else -> {}
@@ -440,10 +440,9 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
             MSG_UNO -> {
                 when (messageAndParameter[1].uppercase()) {
-                    MSG_PARAM_UNO_PASTE -> return if (isExternalClipboard)
-                        performPaste()
-                    else
-                        true
+                    MSG_PARAM_UNO_PASTE -> performPaste()
+//                    else
+//                        true
                 }
             }
             MSG_LOADWITHPASSWORD -> {
