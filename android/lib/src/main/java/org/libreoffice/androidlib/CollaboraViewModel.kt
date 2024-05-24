@@ -119,6 +119,9 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     protected val _fakeWebSocketOnMessageCalled = Channel<String>(Channel.UNLIMITED)
     val fakeWebSocketOnMessageCalled: Flow<String> = _fakeWebSocketOnMessageCalled.receiveAsFlow()
 
+    protected val _postMobileMessageCalled = Channel<String>(Channel.UNLIMITED)
+    val postMobileMessageCalled: Flow<String> = _postMobileMessageCalled.receiveAsFlow()
+
     private var _userName : String = ""
     private var clipData: ClipData? = null
 
@@ -135,6 +138,11 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             "uno:ChangeTheme" !in messageAndParameter[1] && // Исключаем применение темы при открытии дока
             "uno:ExecuteSearch" !in messageAndParameter[1]) // Исключаем команду поиска
             isDocModified = true
+
+        // Подписываемся сразу почти на все события чтобы лишний раз не пересобирать Коллабору
+        if (messageAndParameter[0] != MSG_LIGHT_SCREEN)
+            _postMobileMessageCalled.trySend("$messageAndParameter")
+
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
 //            if (isExternalClipboard)
