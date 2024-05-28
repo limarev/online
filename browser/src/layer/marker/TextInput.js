@@ -265,10 +265,10 @@ L.TextInput = L.Layer.extend({
 
 		// Trick to avoid showing the software keyboard: Set the textarea
 		// read-only before focus() and reset it again after the blur()
-		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.mode.isChromebook()) {
-			if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true)
-				this._textArea.setAttribute('readonly', true);
-		}
+		// if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.mode.isChromebook()) {
+		// 	if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true)
+		// 		this._textArea.setAttribute('readonly', true);
+		// }
 
 		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.ThisIsAMobileApp && !window.mode.isMobile()) {
 			this._textArea.focus();
