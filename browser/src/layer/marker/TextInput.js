@@ -35,7 +35,7 @@ L.TextInput = L.Layer.extend({
 
 		// If the last focus intended to accept user input.
 		// Signifies whether the keyboard is meant to be visible.
-		this._setAcceptInput(false);
+		this._setAcceptInput(true);
 
 		// Content
 		this._lastContent = []; // unicode characters
@@ -295,7 +295,7 @@ L.TextInput = L.Layer.extend({
 		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.mode.isChromebook()) {
 			if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true) {
 				this._setAcceptInput(false);
-				//this._textArea.blur();
+				this._textArea.blur();
 				this._textArea.removeAttribute('readonly');
 			} else {
 				this._setAcceptInput(true);
