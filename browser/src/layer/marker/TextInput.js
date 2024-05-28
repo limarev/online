@@ -35,7 +35,7 @@ L.TextInput = L.Layer.extend({
 
 		// If the last focus intended to accept user input.
 		// Signifies whether the keyboard is meant to be visible.
-		this._setAcceptInput(true);
+		this._setAcceptInput(false);
 
 		// Content
 		this._lastContent = []; // unicode characters
@@ -247,7 +247,7 @@ L.TextInput = L.Layer.extend({
 	// Focus the textarea/contenteditable
 	// @acceptInput (only on "mobile" (= mobile phone) or on iOS and Android in general) true if we want to
 	// accept key input, and show the virtual keyboard.
-	focus: function(acceptInput) {
+	focus: function(acceptInput = true) {
 		// Note that the acceptInput parameter intentionally
 		// is a tri-state boolean: undefined, false, or true.
 
