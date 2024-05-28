@@ -251,7 +251,7 @@ L.TextInput = L.Layer.extend({
 		// Note that the acceptInput parameter intentionally
 		// is a tri-state boolean: undefined, false, or true.
 
-		acceptInput = true
+		acceptInput = true;
 
 		// Clicking or otherwise focusing the map should focus on the clipboard
 		// container in order for the user to input text (and on-screen keyboards
