@@ -247,9 +247,11 @@ L.TextInput = L.Layer.extend({
 	// Focus the textarea/contenteditable
 	// @acceptInput (only on "mobile" (= mobile phone) or on iOS and Android in general) true if we want to
 	// accept key input, and show the virtual keyboard.
-	focus: function(acceptInput = true) {
+	focus: function(acceptInput) {
 		// Note that the acceptInput parameter intentionally
 		// is a tri-state boolean: undefined, false, or true.
+
+		acceptInput = true
 
 		// Clicking or otherwise focusing the map should focus on the clipboard
 		// container in order for the user to input text (and on-screen keyboards
