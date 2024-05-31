@@ -251,8 +251,6 @@ L.TextInput = L.Layer.extend({
 		// Note that the acceptInput parameter intentionally
 		// is a tri-state boolean: undefined, false, or true.
 
-		acceptInput = true;
-
 		// Clicking or otherwise focusing the map should focus on the clipboard
 		// container in order for the user to input text (and on-screen keyboards
 		// to pop-up), unless the document is read only.
@@ -295,13 +293,23 @@ L.TextInput = L.Layer.extend({
 		}
 
 		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.mode.isChromebook()) {
-			if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true) {
-				this._setAcceptInput(false);
-				this._textArea.blur();
-				this._textArea.removeAttribute('readonly');
-			} else {
-				this._setAcceptInput(true);
+
+			// Принудительно для поддерживаемого браузера показываем виртуальную клавиатуру
+			this._textArea.removeAttribute('readonly');
+
+			this._setAcceptInput(true);
+
+			if (navigator.virtualKeyboard) {
+				navigator.virtualKeyboard.show()
 			}
+
+			// if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true) {
+			// 	this._setAcceptInput(false);
+			// 	this._textArea.blur();
+			// 	this._textArea.removeAttribute('readonly');
+			// } else {
+			// 	this._setAcceptInput(true);
+			// }
 		} else if (acceptInput !== false) {
 			this._setAcceptInput(true);
 		} else {
