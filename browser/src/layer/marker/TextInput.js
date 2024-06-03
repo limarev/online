@@ -300,7 +300,7 @@ L.TextInput = L.Layer.extend({
 			this._setAcceptInput(true);
 
 			if (navigator.virtualKeyboard) {
-				navigator.virtualKeyboard.show()
+				navigator.virtualKeyboard.show();
 			}
 
 			// if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true) {
