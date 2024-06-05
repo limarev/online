@@ -320,7 +320,7 @@ Java_org_libreoffice_androidlib_CollaboraViewModel_createCOOLWSD(JNIEnv *env, jo
     if (lokInitialized)
     {
         // close the previous document so that we can wait for the new HULLO
-        closeDocument();
+//        closeDocument();
         return;
     }
     const std::string userInterfaceMode = std::string(env->GetStringUTFChars(uiMode, nullptr));
