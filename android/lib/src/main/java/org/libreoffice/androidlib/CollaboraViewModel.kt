@@ -209,23 +209,19 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param permission указывает, открываем файл для просмотра или редактирования readonly/edit.
      * @param fileToLoad Файл для загрузки.
      */
-    open fun prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
+    open suspend fun prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
         _userName = userName
-        viewModelScope.launch {
-            val stringFileUriToLoad = fileToLoad.toURI().toString()
-            val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad, permission)
-            if (assetsWereExtracted()) {
-                afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
-            } else {
-                startFirstFileLoading()
-                withContext(Dispatchers.IO) {
-                    val assetManager = applicationContext.assets
-                    val destinationPath = applicationContext.applicationInfo.dataDir
-                    copyUnpackAssetsRecursively(assetManager, UNPACK_ASSETS_DIRECTORY, destinationPath)
-                }
-                writeAssetsExtractedPreference()
-                afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
-            }
+        val stringFileUriToLoad = fileToLoad.toURI().toString()
+        val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad, permission)
+        if (assetsWereExtracted()) {
+            afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
+        } else {
+            startFirstFileLoading()
+            val assetManager = applicationContext.assets
+            val destinationPath = applicationContext.applicationInfo.dataDir
+            copyUnpackAssetsRecursively(assetManager, UNPACK_ASSETS_DIRECTORY, destinationPath)
+            writeAssetsExtractedPreference()
+            afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
         }
     }
 
