@@ -1215,7 +1215,7 @@ namespace Util
         __gcov_dump();
 #endif
 
-        std::_Exit(code);
+//        std::_Exit(code);
     }
 
     bool matchRegex(const std::set<std::string>& set, const std::string& subject)
