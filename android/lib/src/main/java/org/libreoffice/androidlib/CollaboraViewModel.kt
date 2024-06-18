@@ -40,6 +40,7 @@ import android.util.JsonReader
 import android.util.JsonWriter
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+
 /**
  * Вью модель для фрагмента [DocumentViewerFragment].
  *
@@ -48,14 +49,17 @@ import java.io.ObjectOutputStream
  * @author Уколов Александр 25.06.2021.
  */
 @SuppressLint("StaticFieldLeak")
-open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(), CoolMessageHandler {
+open class CollaboraViewModel(private val applicationContext: Context) : ViewModel(),
+    CoolMessageHandler {
 
-    private val clipboardManager : ClipboardManagerWrapper by lazy {
+    private val clipboardManager: ClipboardManagerWrapper by lazy {
         ClipboardManagerWrapper(applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
     }
+
     init {
         System.loadLibrary("androidapp")
     }
+
     /**
      * Нативный метод для создания LOOLWSD.
      *
@@ -83,16 +87,16 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     )
 
     external fun getClipboardContent(
-        aData : LokClipboardData
-    ) : Boolean
+        aData: LokClipboardData
+    ): Boolean
 
     external fun setClipboardContent(
-        aData : LokClipboardData
+        aData: LokClipboardData
     )
 
     external fun paste(
-        mimeType : String,
-        data : ByteArray
+        mimeType: String,
+        data: ByteArray
     )
 
     /**
@@ -119,11 +123,12 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
     protected val _fakeWebSocketOnMessageCalled = Channel<String>(Channel.UNLIMITED)
     val fakeWebSocketOnMessageCalled: Flow<String> = _fakeWebSocketOnMessageCalled.receiveAsFlow()
 
-    private var _userName : String = ""
+    private var _userName: String = ""
     private var clipData: ClipData? = null
 
     // Пытаемся выяснить модифицировался ли документ по действиям пользователя
     var isDocModified = false
+
     // работает ли коллабора с внешним буфером
     var isExternalClipboard = false
 
@@ -133,12 +138,13 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         Log.i(TAG, "postMobileMessage(): Message & Parameter: $messageAndParameter")
         if (messageAndParameter[0] in setOf("uno", "textinput", "removetextcontext") &&
             "uno:ChangeTheme" !in messageAndParameter[1] && // Исключаем применение темы при открытии дока
-            "uno:ExecuteSearch" !in messageAndParameter[1]) // Исключаем команду поиска
+            "uno:ExecuteSearch" !in messageAndParameter[1]
+        ) // Исключаем команду поиска
             isDocModified = true
         if (beforeMessageFromWebView(messageAndParameter)) {
             postMobileMessageNative(message)
 //            if (isExternalClipboard)
-                afterMessageFromWebView(messageAndParameter)
+            afterMessageFromWebView(messageAndParameter)
         }
     }
 
@@ -146,13 +152,16 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
         when (messageAndParameterArray[0].uppercase(Locale.getDefault())) {
             MSG_UNO -> when (messageAndParameterArray[1].uppercase()) {
                 MSG_PARAM_UNO_COPY, MSG_PARAM_UNO_CUT, MSG_PARAM_UNO_PASTE -> {
-                        populateClipboard()
+                    populateClipboard()
                 }
+
                 else -> {}
             }
+
             else -> {}
         }
     }
+
     @JavascriptInterface
     override open fun isChromeOS(): Boolean {
         return false
@@ -196,7 +205,10 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             if (message.startsWith(MSG_PARAM_STATUS_INDICATOR_VALUE)) {
                 val value = getProgressValue(message)
                 _progressValue.trySend(value)
-            } else if (message.startsWith(MSG_PARAM_STATUS_INDICATOR_FINISH) || message.startsWith(MSG_PARAM_ERROR)) {
+            } else if (message.startsWith(MSG_PARAM_STATUS_INDICATOR_FINISH) || message.startsWith(
+                    MSG_PARAM_ERROR
+                )
+            ) {
                 stopAsyncProcess()
             }
         }
@@ -209,23 +221,19 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param permission указывает, открываем файл для просмотра или редактирования readonly/edit.
      * @param fileToLoad Файл для загрузки.
      */
-    open fun prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
+    open fun suspend prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
         _userName = userName
-        viewModelScope.launch {
-            val stringFileUriToLoad = fileToLoad.toURI().toString()
-            val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad, permission)
-            if (assetsWereExtracted()) {
-                afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
-            } else {
-                startFirstFileLoading()
-                withContext(Dispatchers.IO) {
-                    val assetManager = applicationContext.assets
-                    val destinationPath = applicationContext.applicationInfo.dataDir
-                    copyUnpackAssetsRecursively(assetManager, UNPACK_ASSETS_DIRECTORY, destinationPath)
-                }
-                writeAssetsExtractedPreference()
-                afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
-            }
+        val stringFileUriToLoad = fileToLoad.toURI().toString()
+        val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad, permission)
+        if (assetsWereExtracted()) {
+            afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
+        } else {
+            startFirstFileLoading()
+            val assetManager = applicationContext.assets
+            val destinationPath = applicationContext.applicationInfo.dataDir
+            copyUnpackAssetsRecursively(assetManager, UNPACK_ASSETS_DIRECTORY, destinationPath)
+            writeAssetsExtractedPreference()
+            afterAssetsWereExtracted(stringFileUriToLoad, stringFileUrlToLoad)
         }
     }
 
@@ -257,7 +265,10 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param stringFileUriToLoad Uri файла в виде строки для загрузки.
      * @param stringFileUrlToLoad Url файла в виде строки для загрузки.
      */
-    protected open fun afterAssetsWereExtracted(stringFileUriToLoad: String, stringFileUrlToLoad: String) {
+    protected open fun afterAssetsWereExtracted(
+        stringFileUriToLoad: String,
+        stringFileUrlToLoad: String
+    ) {
         createLoolwsd(stringFileUriToLoad)
         startDeterminateFileLoading()
         _stringFileUrlToLoad.trySend(stringFileUrlToLoad)
@@ -272,7 +283,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      */
     protected open fun buildFileUrlToLoad(
         stringFileToLoadUri: String,
-        permission : String
+        permission: String
     ): String =
         StringBuilder()
             .append("file:///android_asset/dist/cool.html")
@@ -306,7 +317,11 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param sourcePath Путь источника копирования.
      * @param destinationPath Путь назначения копирования.
      */
-    protected open fun copyUnpackAssetsRecursively(assetManager: AssetManager, sourcePath: String, destinationPath: String) {
+    protected open fun copyUnpackAssetsRecursively(
+        assetManager: AssetManager,
+        sourcePath: String,
+        destinationPath: String
+    ) {
         try {
             assetManager.list(sourcePath)?.forEach { entity ->
                 val sourceEntityPath = "$sourcePath/$entity"
@@ -318,7 +333,11 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     File(destinationPath).mkdirs()
                     copyAsset(assetManager, sourceEntityPath, destinationEntityPath)
                 } else {
-                    copyUnpackAssetsRecursively(assetManager, sourceEntityPath, destinationEntityPath)
+                    copyUnpackAssetsRecursively(
+                        assetManager,
+                        sourceEntityPath,
+                        destinationEntityPath
+                    )
                 }
             }
         } catch (e: IOException) {
@@ -335,7 +354,11 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param sourcePath Путь источника копирования.
      * @param destinationPath Путь назначения копирования.
      */
-    protected open fun copyAsset(assetManager: AssetManager, sourcePath: String, destinationPath: String) {
+    protected open fun copyAsset(
+        assetManager: AssetManager,
+        sourcePath: String,
+        destinationPath: String
+    ) {
         BufferedInputStream(assetManager.open(sourcePath)).use { inputStream ->
             BufferedOutputStream(FileOutputStream(destinationPath)).use { outputStream ->
                 inputStream.copyTo(outputStream)
@@ -434,10 +457,12 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             MSG_MOBILEWIZARD -> {
                 return false
             }
+
             MSG_HYPERLINK -> {
                 _hyperlink.trySend(messageAndParameter[1])
                 return false
             }
+
             MSG_UNO -> {
                 when (messageAndParameter[1].uppercase()) {
                     MSG_PARAM_UNO_PASTE -> {
@@ -445,10 +470,12 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                     }
                 }
             }
+
             MSG_LOADWITHPASSWORD -> {
                 startDeterminateFileLoading()
                 return true
             }
+
             MSG_PRINT,
             MSG_SAVE,
             MSG_DOWNLOADAS,
@@ -500,11 +527,13 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
             }
         }
     }
+
     private val CLIPBOARD_COOL_SIGNATURE = "cool-clip-magic-4a22437e49a8-"
 
-    private val openTime : Long by lazy {
+    private val openTime: Long by lazy {
         android.os.SystemClock.uptimeMillis()
     }
+
     private fun getClipboardMagic(): String {
         return CLIPBOARD_COOL_SIGNATURE + java.lang.Long.toString(openTime)
     }
@@ -560,7 +589,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
                 val item: ClipData.Item = clipData!!.getItemAt(i)
                 val uri: Uri = item.getUri()
                 try {
-                    val imageStream: java.io.InputStream = applicationContext.getContentResolver().openInputStream(uri)!!
+                    val imageStream: java.io.InputStream =
+                        applicationContext.getContentResolver().openInputStream(uri)!!
                     val buffer = ByteArrayOutputStream()
                     var nRead: Int
                     val data = ByteArray(16384)
@@ -623,7 +653,8 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
          * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
          * и обозначет стартовый индекс значения индикатора загрузки.
          */
-        const val MSG_PARAM_STATUS_INDICATOR_VALUE = "${MSG_PARAM_DELIMITER}statusindicatorsetvalue: "
+        const val MSG_PARAM_STATUS_INDICATOR_VALUE =
+            "${MSG_PARAM_DELIMITER}statusindicatorsetvalue: "
 
         /**
          * Параметр, который может находится в сообщении в методе [callFakeWebsocketOnMessage],
