@@ -221,7 +221,7 @@ open class CollaboraViewModel(private val applicationContext: Context) : ViewMod
      * @param permission указывает, открываем файл для просмотра или редактирования readonly/edit.
      * @param fileToLoad Файл для загрузки.
      */
-    open fun suspend prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
+    open suspend fun prepareAndLoadFile(fileToLoad: File, permission : String, userName : String) {
         _userName = userName
         val stringFileUriToLoad = fileToLoad.toURI().toString()
         val stringFileUrlToLoad = buildFileUrlToLoad(stringFileUriToLoad, permission)
